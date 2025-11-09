@@ -81,7 +81,7 @@ class AindTelekinesisRig(AindBehaviorRigModel):
     harp_behavior: rig.harp.HarpBehavior = Field(..., description="Harp behavior")
     harp_lickometer: rig.harp.HarpLicketySplit = Field(..., description="Harp lickometer")
     harp_load_cells: Optional[lcc.LoadCells] = Field(default=None, description="Harp load cells")
-    harp_clock_generator: rig.harp.HarpWhiteRabbit = Field(..., description="Harp clock generator")
+    harp_clock_generator: rig.harp.HarpTimestampGeneratorGen3 = Field(..., description="Harp clock generator")#HarpWhiteRabbit
     harp_analog_input: Optional[rig.harp.HarpAnalogInput] = Field(default=None, description="Harp analog input")
     harp_environment_sensor: Optional[rig.harp.HarpEnvironmentSensor] = Field(
         default=None, description="Harp environment sensor"

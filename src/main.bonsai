@@ -41,9 +41,9 @@
         <Property Name="SessionPath" />
       </Expression>
       <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.Core:ReadSchemas.bonsai">
-        <TaskLogicPath />
-        <RigPath />
-        <SessionPath />
+        <TaskLogicPath>C:\Scripts\Aind.Behavior.Telekinesis\local\AindTelekinesisTaskLogic.json</TaskLogicPath>
+        <RigPath>C:\Scripts\Aind.Behavior.Telekinesis\local\AindTelekinesisRig.json</RigPath>
+        <SessionPath>C:\Scripts\Aind.Behavior.Telekinesis\local\AindBehaviorSessionModel.json</SessionPath>
       </Expression>
       <Expression xsi:type="GroupWorkflow">
         <Name>LoadSchemas</Name>
@@ -155,7 +155,7 @@
                     </PropertyMappings>
                   </Expression>
                   <Expression xsi:type="IncludeWorkflow" Path="Extensions\HarpBehaviorDevice.bonsai">
-                    <PortName>COM5</PortName>
+                    <PortName>COM3</PortName>
                   </Expression>
                   <Expression xsi:type="SubscribeSubject">
                     <Name>RigSchema</Name>
@@ -169,7 +169,7 @@
                     </PropertyMappings>
                   </Expression>
                   <Expression xsi:type="IncludeWorkflow" Path="Extensions\HarpLicketySplitDevice.bonsai">
-                    <PortName>COMx</PortName>
+                    <PortName>COM6</PortName>
                     <TriggerHarpReadDumpSubjectName>TriggerHarpReadDump</TriggerHarpReadDumpSubjectName>
                   </Expression>
                   <Expression xsi:type="SubscribeSubject">
@@ -184,7 +184,7 @@
                     </PropertyMappings>
                   </Expression>
                   <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:HarpWhiteRabbit.bonsai">
-                    <PortName>COMx</PortName>
+                    <PortName>COM5</PortName>
                     <TriggerHarpReadDumpSubjectName>TriggerHarpReadDump</TriggerHarpReadDumpSubjectName>
                   </Expression>
                   <Expression xsi:type="SubscribeSubject">
@@ -199,7 +199,7 @@
                     </PropertyMappings>
                   </Expression>
                   <Expression xsi:type="IncludeWorkflow" Path="Extensions\HarpLoadCellsDevice.bonsai">
-                    <PortName>COMx</PortName>
+                    <PortName>COM4</PortName>
                     <TriggerHarpReadDumpSubjectName>TriggerHarpReadDump</TriggerHarpReadDumpSubjectName>
                   </Expression>
                   <Expression xsi:type="SubscribeSubject">
@@ -270,7 +270,7 @@
                     </PropertyMappings>
                   </Expression>
                   <Expression xsi:type="IncludeWorkflow" Path="Extensions\AindManipulator.bonsai">
-                    <PortName>COMx</PortName>
+                    <PortName>COM7</PortName>
                     <TriggerHarpReadDumpSubjectName>TriggerHarpReadDump</TriggerHarpReadDumpSubjectName>
                   </Expression>
                   <Expression xsi:type="SubscribeSubject">
@@ -728,7 +728,7 @@
                   <Expression xsi:type="Combinator">
                     <Combinator xsi:type="zmq:Publisher">
                       <zmq:ConnectionString>@tcp://localhost:5556</zmq:ConnectionString>
-                      <zmq:Topic>telekinesis</zmq:Topic>
+                      <zmq:Topic>Telekinesis</zmq:Topic>
                     </Combinator>
                   </Expression>
                   <Expression xsi:type="WorkflowOutput" />
@@ -797,7 +797,7 @@
             </Expression>
             <Expression xsi:type="Combinator">
               <Combinator xsi:type="num:CreateRandom">
-                <num:Seed xsi:nil="true" />
+                <num:Seed>9</num:Seed>
               </Combinator>
             </Expression>
             <Expression xsi:type="Combinator">
@@ -826,8 +826,8 @@
               </PropertyMappings>
             </Expression>
             <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.Core:GenerateRootLoggingPathFromSession.bonsai">
-              <RootFolder />
-              <SessionName xsi:nil="true" />
+              <RootFolder>C://Data</RootFolder>
+              <SessionName>test_subject_2025-11-09T140604Z</SessionName>
               <SubjectName>LoggingRootPath</SubjectName>
             </Expression>
             <Expression xsi:type="Combinator">
@@ -2459,7 +2459,7 @@ Item2.Item3 as LowerThr)]]></Text>
                   </Expression>
                   <Expression xsi:type="PropertySource" TypeArguments="p5:AxisConfiguration,p5:Axis">
                     <MemberName>Axis</MemberName>
-                    <Value>None</Value>
+                    <Value>Y1</Value>
                   </Expression>
                   <Expression xsi:type="rx:BehaviorSubject" TypeArguments="sys:Single">
                     <rx:Name>SpoutPosition</rx:Name>
@@ -2524,6 +2524,7 @@ Item2.Item3 as LowerThr)]]></Text>
                   </Expression>
                   <Expression xsi:type="Combinator">
                     <Combinator xsi:type="p5:ManipulatorSiUnitConverter">
+                      <p5:Calibration />
                       <p5:ConverterMode>MmToStep</p5:ConverterMode>
                     </Combinator>
                   </Expression>
@@ -2700,6 +2701,7 @@ Item2.Item3 as LowerThr)]]></Text>
                               </Expression>
                               <Expression xsi:type="Combinator">
                                 <Combinator xsi:type="cv:LoadImage">
+                                  <cv:FileName>C:\Scripts\Aind.Behavior.Telekinesis\local/2d_gaussian.tiff</cv:FileName>
                                   <cv:Mode>Unchanged</cv:Mode>
                                 </Combinator>
                               </Expression>
@@ -2727,7 +2729,7 @@ Item2.Item3 as LowerThr)]]></Text>
                         <Expression xsi:type="Combinator">
                           <Combinator xsi:type="dsp:ConvertScale">
                             <dsp:Depth xsi:nil="true" />
-                            <dsp:Scale>1</dsp:Scale>
+                            <dsp:Scale>5</dsp:Scale>
                             <dsp:Shift>0</dsp:Shift>
                           </Combinator>
                         </Expression>
