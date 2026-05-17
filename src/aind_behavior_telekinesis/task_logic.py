@@ -139,6 +139,9 @@ class Action(BaseModel):
         validate_default=True,
     )
     continuous_feedback: Optional[ContinuousFeedback] = Field(default=None, description="Continuous feedback settings")
+    action_type: Literal["integrated", "instantaneous"] = Field(
+        default="integrated", description="Type of action to be performed"
+    )
 
 
 class QuiescencePeriod(BaseModel):

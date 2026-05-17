@@ -37,6 +37,8 @@ namespace AindBehaviorTelekinesisDataSchema
     
         private ContinuousFeedback _continuousFeedback;
     
+        private ActionType _actionType;
+    
         public Action()
         {
             _rewardProbability = new AllenNeuralDynamics.AindBehaviorServices.Distributions.Distribution();
@@ -46,6 +48,7 @@ namespace AindBehaviorTelekinesisDataSchema
             _upperActionThreshold = new AllenNeuralDynamics.AindBehaviorServices.Distributions.Distribution();
             _lowerActionThreshold = new AllenNeuralDynamics.AindBehaviorServices.Distributions.Distribution();
             _isOperant = true;
+            _actionType = ActionType.Integrated;
         }
     
         protected Action(Action other)
@@ -59,6 +62,7 @@ namespace AindBehaviorTelekinesisDataSchema
             _isOperant = other._isOperant;
             _timeToCollect = other._timeToCollect;
             _continuousFeedback = other._continuousFeedback;
+            _actionType = other._actionType;
         }
     
         /// <summary>
@@ -224,6 +228,23 @@ namespace AindBehaviorTelekinesisDataSchema
             }
         }
     
+        /// <summary>
+        /// Type of action to be performed
+        /// </summary>
+        [Newtonsoft.Json.JsonPropertyAttribute("action_type")]
+        [System.ComponentModel.DescriptionAttribute("Type of action to be performed")]
+        public ActionType ActionType
+        {
+            get
+            {
+                return _actionType;
+            }
+            set
+            {
+                _actionType = value;
+            }
+        }
+    
         public System.IObservable<Action> Generate()
         {
             return System.Reactive.Linq.Observable.Defer(() => System.Reactive.Linq.Observable.Return(new Action(this)));
@@ -244,7 +265,8 @@ namespace AindBehaviorTelekinesisDataSchema
             stringBuilder.Append("LowerActionThreshold = " + _lowerActionThreshold + ", ");
             stringBuilder.Append("IsOperant = " + _isOperant + ", ");
             stringBuilder.Append("TimeToCollect = " + _timeToCollect + ", ");
-            stringBuilder.Append("ContinuousFeedback = " + _continuousFeedback);
+            stringBuilder.Append("ContinuousFeedback = " + _continuousFeedback + ", ");
+            stringBuilder.Append("ActionType = " + _actionType);
             return true;
         }
     
@@ -6892,6 +6914,19 @@ namespace AindBehaviorTelekinesisDataSchema
             stringBuilder.Append("}");
             return stringBuilder.ToString();
         }
+    }
+
+
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Bonsai.Sgen", "0.9.0.0 (Newtonsoft.Json v13.0.0.0)")]
+    [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
+    public enum ActionType
+    {
+    
+        [System.Runtime.Serialization.EnumMemberAttribute(Value="integrated")]
+        Integrated = 0,
+    
+        [System.Runtime.Serialization.EnumMemberAttribute(Value="instantaneous")]
+        Instantaneous = 1,
     }
 
 

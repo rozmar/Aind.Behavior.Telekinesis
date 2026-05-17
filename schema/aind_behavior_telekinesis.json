@@ -110,6 +110,16 @@
               "type": "null"
             }
           ]
+        },
+        "action_type": {
+          "default": "integrated",
+          "description": "Type of action to be performed",
+          "enum": [
+            "integrated",
+            "instantaneous"
+          ],
+          "title": "Action Type",
+          "type": "string"
         }
       },
       "title": "Action",
@@ -2407,7 +2417,8 @@
             },
             "is_operant": true,
             "time_to_collect": null,
-            "continuous_feedback": null
+            "continuous_feedback": null,
+            "action_type": "integrated"
           },
           "description": "Action to be performed during the response period"
         }
@@ -3279,6 +3290,7 @@
                 "scaling_parameters": null,
                 "truncation_parameters": null
               },
+              "action_type": "integrated",
               "continuous_feedback": null,
               "is_operant": true,
               "lower_action_threshold": {
