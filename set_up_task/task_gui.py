@@ -56,6 +56,7 @@ DEFAULT_PARAMS: dict = {
     "quiescence_duration":    0.5,
     "quiescence_threshold":   1.0,
     "is_operant":             False,
+    "instantaneous_mode":     False,
     "lut_gaussians": [
         {"center_lat":  750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
         {"center_lat":  750, "center_ap":  750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
@@ -333,6 +334,16 @@ class ConfigTab(ttk.Frame):
         ttk.Checkbutton(iop_row, variable=self._is_operant_var,
                         command=self._on_task_param_changed).pack(side="left", padx=(4, 0))
 
+        # instantaneous_mode
+        inst_row = ttk.Frame(pg)
+        inst_row.pack(fill="x", pady=1, padx=4)
+        ttk.Label(inst_row, text="Instantaneous Mode:", width=20, anchor="e").pack(side="left")
+        self._instantaneous_mode_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(inst_row, variable=self._instantaneous_mode_var,
+                        command=self._on_task_param_changed).pack(side="left", padx=(4, 0))
+        ttk.Label(inst_row, text="(use port position, not speed)",
+                  foreground="gray", font=("TkDefaultFont", 7)).pack(side="left", padx=(6, 0))
+
         # Camera parameters — per mouse, independently for each camera
         cg = ttk.LabelFrame(parent, text="Cameras (per Mouse)")
         cg.pack(fill="x", pady=(0, 5))
@@ -605,6 +616,7 @@ class ConfigTab(ttk.Frame):
             self._gamma_var.set(gamma_val if enabled else 1.0)
             self._gamma_spin.config(state="normal" if enabled else "disabled")
             self._is_operant_var.set(bool(self._params.get("is_operant", False)))
+            self._instantaneous_mode_var.set(bool(self._params.get("instantaneous_mode", False)))
             gamma2_val = self._params.get("camera2_gamma")
             enabled2   = gamma2_val is not None
             self._gamma2_en_var.set(enabled2)
@@ -624,6 +636,7 @@ class ConfigTab(ttk.Frame):
             except Exception:
                 pass
         self._params["is_operant"] = self._is_operant_var.get()
+        self._params["instantaneous_mode"] = self._instantaneous_mode_var.get()
 
     def _on_gamma_toggled(self, cam: int = 1):
         if cam == 1:
@@ -763,7 +776,8 @@ class ConfigTab(ttk.Frame):
                 pass
         p["camera_gamma"]  = self._gamma_var.get()  if self._gamma_en_var.get()  else None
         p["camera2_gamma"] = self._gamma2_var.get() if self._gamma2_en_var.get() else None
-        p["is_operant"]    = self._is_operant_var.get()
+        p["is_operant"]           = self._is_operant_var.get()
+        p["instantaneous_mode"]   = self._instantaneous_mode_var.get()
         return p
 
     def _on_save_profile(self):
@@ -849,6 +863,7 @@ class ConfigTab(ttk.Frame):
                 converter_lut_input=[0, 1],
                 converter_lut_output=[far_pos, close_pos],
             ),
+            action_type="instantaneous" if p.get("instantaneous_mode") else "integrated",
         )
 
         task_logic = tl.AindBehaviorTelekinesisTaskLogic(
