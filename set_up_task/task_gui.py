@@ -23,11 +23,18 @@ from pathlib import Path
 
 import matplotlib
 matplotlib.use("TkAgg")
+import copy
+import matplotlib.cm as _mcm
+
 import matplotlib.ticker as ticker
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from PIL import Image
+
+# Colormap for instantaneous mode: viridis for [0,1], vivid red above threshold
+_POS_CMAP = copy.copy(_mcm.get_cmap("viridis"))
+_POS_CMAP.set_over("#d32f2f")
 
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
@@ -55,6 +62,7 @@ DEFAULT_PARAMS: dict = {
     "mouse_motor_hard_limit": 15.0,
     "quiescence_duration":    0.5,
     "quiescence_threshold":   1.0,
+    "action_duration":        0.1,
     "is_operant":             False,
     "instantaneous_mode":     False,
     "lut_gaussians": [
@@ -313,6 +321,7 @@ class ConfigTab(ttk.Frame):
         self._param_vars: dict = {}
         for key, label, default, lo, hi, step in [
             ("trial_length",          "Trial Length (s)",    1000.0,  1,    10000, 100.0),
+            ("action_duration",       "Hold Duration (s)",      0.1,  0.0,     10,  0.05),
             ("lick_response_time",    "Lick Response (s)",      4.0,  0.1,     60,   0.5),
             ("inter_trial_interval",  "ITI (s)",                2.0,  0.1,     60,   0.5),
             ("reward_size",           "Reward (µL)",            1.0,  0.1,     20,   0.1),
@@ -340,7 +349,8 @@ class ConfigTab(ttk.Frame):
         ttk.Label(inst_row, text="Instantaneous Mode:", width=20, anchor="e").pack(side="left")
         self._instantaneous_mode_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(inst_row, variable=self._instantaneous_mode_var,
-                        command=self._on_task_param_changed).pack(side="left", padx=(4, 0))
+                        command=lambda: (self._on_task_param_changed(),
+                                        self._schedule_lut_update())).pack(side="left", padx=(4, 0))
         ttk.Label(inst_row, text="(use port position, not speed)",
                   foreground="gray", font=("TkDefaultFont", 7)).pack(side="left", padx=(6, 0))
 
@@ -739,16 +749,32 @@ class ConfigTab(ttk.Frame):
         try:
             p = self._build_current_params()
             matrix, lat_vec, ap_vec = compute_lut_matrix(p)
-            # Update existing imshow in-place — never recreate axes or colorbar
-            self._lut_im.set_data(matrix)
-            self._lut_im.set_extent([lat_vec[0], lat_vec[-1], ap_vec[0], ap_vec[-1]])
-            self._lut_im.set_clim(matrix.min(), matrix.max())
+            inst = self._instantaneous_mode_var.get()
+            if inst:
+                display = matrix * p.get("lut_scale", 1.0)
+                self._lut_im.set_cmap(_POS_CMAP)
+                self._lut_im.set_data(display)
+                self._lut_im.set_extent([lat_vec[0], lat_vec[-1], ap_vec[0], ap_vec[-1]])
+                self._lut_im.set_clim(0, 1)
+                self._lut_cbar.set_label("Lickport Position (0→1)", fontsize=8)
+                self._lut_ax.set_title(
+                    f"Position LUT  |  scale×{p['lut_scale']:.2f}  "
+                    f"N={len(p.get('lut_gaussians', []))} gaussians  "
+                    f"[red = above threshold]",
+                    fontsize=8,
+                )
+            else:
+                self._lut_im.set_cmap("viridis")
+                self._lut_im.set_data(matrix)
+                self._lut_im.set_extent([lat_vec[0], lat_vec[-1], ap_vec[0], ap_vec[-1]])
+                self._lut_im.set_clim(matrix.min(), matrix.max())
+                self._lut_cbar.set_label("Speed (mm/s)", fontsize=8)
+                self._lut_ax.set_title(
+                    f"Speed LUT  |  offset={p['lut_offset']:.2f}  scale×{p['lut_scale']:.2f}  "
+                    f"N={len(p.get('lut_gaussians', []))} gaussians",
+                    fontsize=8,
+                )
             self._lut_cbar.update_normal(self._lut_im)
-            self._lut_ax.set_title(
-                f"Speed LUT  |  offset={p['lut_offset']:.2f}  scale×{p['lut_scale']:.2f}  "
-                f"N={len(p.get('lut_gaussians', []))} gaussians",
-                fontsize=8,
-            )
             self._lut_canvas.draw_idle()
         except Exception:
             pass
@@ -854,7 +880,7 @@ class ConfigTab(ttk.Frame):
             reward_probability=tl.scalar_value(1),
             reward_amount=tl.scalar_value(p["reward_size"]),
             reward_delay=tl.scalar_value(0),
-            action_duration=tl.scalar_value(0.1),
+            action_duration=tl.scalar_value(p.get("action_duration", 0.1)),
             is_operant=bool(p.get("is_operant", False)),
             time_to_collect=tl.scalar_value(p["lick_response_time"]),
             lower_action_threshold=tl.scalar_value(0),
