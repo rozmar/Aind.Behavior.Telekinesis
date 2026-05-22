@@ -69,6 +69,7 @@ DEFAULT_PARAMS: dict = {
     "is_operant":             False,
     "instantaneous_mode":     False,
     "motor_feedback":         True,
+    "experimenter":           "rozmar",
     "lut_gaussians": [
         {"center_lat":  750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
         {"center_lat":  750, "center_ap":  750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
@@ -407,6 +408,7 @@ class ConfigTab(ttk.Frame):
             var = tk.StringVar(value=default)
             ttk.Entry(row2, textvariable=var).pack(side="left", fill="x", expand=True, padx=(4, 0))
             setattr(self, attr, var)
+        self._exp_var.trace_add("write", self._on_task_param_changed)
 
         # Presets
         prg = ttk.LabelFrame(parent, text="Presets")
@@ -526,12 +528,12 @@ class ConfigTab(ttk.Frame):
         # Buttons
         bf = ttk.Frame(parent)
         bf.pack(fill="x", pady=(4, 0))
-        ttk.Label(bf,
-                  text="Camera settings are written to the rig JSON\n"
-                       "on Generate Config / Start Task, then take\n"
-                       "effect the next time Bonsai starts.",
-                  foreground="gray", justify="left", font=("TkDefaultFont", 7),
-                  ).pack(fill="x", padx=4, pady=(0, 2))
+        # ttk.Label(bf,
+        #           text="Camera settings are written to the rig JSON\n"
+        #                "on Generate Config / Start Task, then take\n"
+        #                "effect the next time Bonsai starts.",
+        #           foreground="gray", justify="left", font=("TkDefaultFont", 7),
+        #           ).pack(fill="x", padx=4, pady=(0, 2))
         ttk.Button(bf, text="Save Profile",    command=self._on_save_profile).pack(fill="x", pady=2)
         ttk.Button(bf, text="Generate Config", command=self._on_generate_config).pack(fill="x", pady=2)
 
@@ -560,16 +562,37 @@ class ConfigTab(ttk.Frame):
         lut_frame = ttk.LabelFrame(parent, text="LUT Editor – 2D Speed Map")
         lut_frame.pack(fill="both", expand=True)
 
-        # Gaussian list + form (left side of LUT frame)
-        gauss_frame = ttk.Frame(lut_frame, width=255)
-        gauss_frame.pack(side="left", fill="y", padx=(4, 2), pady=4)
-        gauss_frame.pack_propagate(False)
+        # ── Top row: 3 columns ─────────────────────────────────────────────────
+        controls = ttk.Frame(lut_frame)
+        controls.pack(fill="x", padx=4, pady=(4, 2))
 
-        ttk.Label(gauss_frame, text="Gaussians:").pack(anchor="w")
+        # Column 1 – Global settings + Force input range
+        col1 = ttk.Frame(controls)
+        col1.pack(side="left", fill="y", padx=(0, 8))
 
-        lb_frame = ttk.Frame(gauss_frame)
-        lb_frame.pack(fill="x")
-        self._gauss_lb = tk.Listbox(lb_frame, height=7, selectmode="single",
+        lg = ttk.LabelFrame(col1, text="LUT Global Settings")
+        lg.pack(fill="x", pady=(0, 4))
+        self._lut_offset_var = self._add_spinrow(lg, "Offset:",        -0.05, -100, 100,  0.05)
+        self._lut_scale_var  = self._add_spinrow(lg, "Scale (output):",  2.5,    0, 100,  0.25)
+        self._lut_offset_var.trace_add("write", lambda *_: self._schedule_lut_update())
+        self._lut_scale_var.trace_add("write",  lambda *_: self._schedule_lut_update())
+
+        rg = ttk.LabelFrame(col1, text="Force Input Range")
+        rg.pack(fill="x")
+        self._lat_min_var = self._add_spinrow(rg, "Lat min:", -2000, -9999, 9999, 100)
+        self._lat_max_var = self._add_spinrow(rg, "Lat max:",  2000, -9999, 9999, 100)
+        self._ap_min_var  = self._add_spinrow(rg, "AP min:",  -2000, -9999, 9999, 100)
+        self._ap_max_var  = self._add_spinrow(rg, "AP max:",   2000, -9999, 9999, 100)
+        for v in (self._lat_min_var, self._lat_max_var, self._ap_min_var, self._ap_max_var):
+            v.trace_add("write", lambda *_: self._schedule_lut_update())
+
+        # Column 2 – Gaussians
+        col2 = ttk.LabelFrame(controls, text="Gaussians")
+        col2.pack(side="left", fill="y", padx=(0, 8))
+
+        lb_frame = ttk.Frame(col2)
+        lb_frame.pack(fill="x", padx=4, pady=(2, 0))
+        self._gauss_lb = tk.Listbox(lb_frame, height=6, selectmode="single",
                                     exportselection=False, font=("Consolas", 8))
         self._gauss_lb.pack(side="left", fill="x", expand=True)
         vsb = ttk.Scrollbar(lb_frame, orient="vertical", command=self._gauss_lb.yview)
@@ -577,16 +600,15 @@ class ConfigTab(ttk.Frame):
         self._gauss_lb.config(yscrollcommand=vsb.set)
         self._gauss_lb.bind("<<ListboxSelect>>", self._on_gauss_list_select)
 
-        btn_row = ttk.Frame(gauss_frame)
-        btn_row.pack(fill="x", pady=2)
+        btn_row = ttk.Frame(col2)
+        btn_row.pack(fill="x", padx=4, pady=2)
         ttk.Button(btn_row, text="+ Add",    width=7,  command=self._add_gaussian).pack(side="left")
         ttk.Button(btn_row, text="− Remove", width=8,  command=self._remove_gaussian).pack(side="left", padx=2)
         ttk.Button(btn_row, text="↑", width=3, command=lambda: self._move_gaussian(-1)).pack(side="left")
         ttk.Button(btn_row, text="↓", width=3, command=lambda: self._move_gaussian(1)).pack(side="left", padx=1)
 
-        # Parameter form for the selected gaussian
-        gf = ttk.LabelFrame(gauss_frame, text="Selected Gaussian")
-        gf.pack(fill="x", pady=(4, 0))
+        gf = ttk.LabelFrame(col2, text="Selected")
+        gf.pack(fill="x", padx=4, pady=(0, 4))
         self._gauss_vars: dict = {}
         for key, label, default, lo, hi, step in [
             ("center_lat", "Center Lat:",  0.0, -9999, 9999,  50.0),
@@ -598,37 +620,20 @@ class ConfigTab(ttk.Frame):
         ]:
             row = ttk.Frame(gf)
             row.pack(fill="x", pady=1)
-            ttk.Label(row, text=label, width=12, anchor="e").pack(side="left")
+            ttk.Label(row, text=label, width=11, anchor="e").pack(side="left")
             var = tk.DoubleVar(value=default)
             ttk.Spinbox(row, from_=lo, to=hi, increment=step,
                         textvariable=var, width=9, format="%.1f").pack(side="left", padx=(4, 0))
             var.trace_add("write", self._on_gauss_form_changed)
             self._gauss_vars[key] = var
 
-        # LUT global settings — next to the gaussian list they affect
-        lg = ttk.LabelFrame(gauss_frame, text="LUT Global Settings")
-        lg.pack(fill="x", pady=(4, 0))
-        self._lut_offset_var = self._add_spinrow(lg, "Offset:",         -0.05, -100, 100,  0.05)
-        self._lut_scale_var  = self._add_spinrow(lg, "Scale (output):",   2.5,    0, 100,  0.25)
-        self._lut_offset_var.trace_add("write", lambda *_: self._schedule_lut_update())
-        self._lut_scale_var.trace_add("write",  lambda *_: self._schedule_lut_update())
+        # Column 3 – Step functions
+        col3 = ttk.LabelFrame(controls, text="Step Functions")
+        col3.pack(side="left", fill="y")
 
-        rg = ttk.LabelFrame(gauss_frame, text="Force Input Range")
-        rg.pack(fill="x", pady=(4, 0))
-        self._lat_min_var = self._add_spinrow(rg, "Lat min:", -2000, -9999, 9999, 100)
-        self._lat_max_var = self._add_spinrow(rg, "Lat max:",  2000, -9999, 9999, 100)
-        self._ap_min_var  = self._add_spinrow(rg, "AP min:",  -2000, -9999, 9999, 100)
-        self._ap_max_var  = self._add_spinrow(rg, "AP max:",   2000, -9999, 9999, 100)
-        for v in (self._lat_min_var, self._lat_max_var, self._ap_min_var, self._ap_max_var):
-            v.trace_add("write", lambda *_: self._schedule_lut_update())
-
-        # Step function list + form
-        ttk.Separator(gauss_frame, orient="horizontal").pack(fill="x", pady=(6, 2))
-        ttk.Label(gauss_frame, text="Step Functions:").pack(anchor="w")
-
-        slb_frame = ttk.Frame(gauss_frame)
-        slb_frame.pack(fill="x")
-        self._step_lb = tk.Listbox(slb_frame, height=5, selectmode="single",
+        slb_frame = ttk.Frame(col3)
+        slb_frame.pack(fill="x", padx=4, pady=(2, 0))
+        self._step_lb = tk.Listbox(slb_frame, height=6, selectmode="single",
                                    exportselection=False, font=("Consolas", 8))
         self._step_lb.pack(side="left", fill="x", expand=True)
         svsb = ttk.Scrollbar(slb_frame, orient="vertical", command=self._step_lb.yview)
@@ -636,15 +641,15 @@ class ConfigTab(ttk.Frame):
         self._step_lb.config(yscrollcommand=svsb.set)
         self._step_lb.bind("<<ListboxSelect>>", self._on_step_list_select)
 
-        sbtn_row = ttk.Frame(gauss_frame)
-        sbtn_row.pack(fill="x", pady=2)
+        sbtn_row = ttk.Frame(col3)
+        sbtn_row.pack(fill="x", padx=4, pady=2)
         ttk.Button(sbtn_row, text="+ Add",    width=7,  command=self._add_step).pack(side="left")
         ttk.Button(sbtn_row, text="− Remove", width=8,  command=self._remove_step).pack(side="left", padx=2)
         ttk.Button(sbtn_row, text="↑", width=3, command=lambda: self._move_step(-1)).pack(side="left")
         ttk.Button(sbtn_row, text="↓", width=3, command=lambda: self._move_step(1)).pack(side="left", padx=1)
 
-        sf = ttk.LabelFrame(gauss_frame, text="Selected Step")
-        sf.pack(fill="x", pady=(4, 0))
+        sf = ttk.LabelFrame(col3, text="Selected")
+        sf.pack(fill="x", padx=4, pady=(0, 4))
         self._step_vars: dict = {}
         for key, label, default, lo, hi, step in [
             ("center_lat", "Center Lat:",  0.0, -9999, 9999,  50.0),
@@ -656,20 +661,19 @@ class ConfigTab(ttk.Frame):
         ]:
             srow = ttk.Frame(sf)
             srow.pack(fill="x", pady=1)
-            ttk.Label(srow, text=label, width=12, anchor="e").pack(side="left")
+            ttk.Label(srow, text=label, width=11, anchor="e").pack(side="left")
             var = tk.DoubleVar(value=default)
             ttk.Spinbox(srow, from_=lo, to=hi, increment=step,
                         textvariable=var, width=9, format="%.1f").pack(side="left", padx=(4, 0))
             var.trace_add("write", self._on_step_form_changed)
             self._step_vars[key] = var
 
-        # Matplotlib LUT preview (right side)
+        # ── Bottom: matplotlib LUT preview (full width) ────────────────────────
         canvas_frame = ttk.Frame(lut_frame)
-        canvas_frame.pack(side="left", fill="both", expand=True, padx=(2, 4), pady=4)
+        canvas_frame.pack(fill="both", expand=True, padx=4, pady=(0, 4))
 
-        self._lut_fig = Figure(figsize=(4.8, 4.0), tight_layout=True)
+        self._lut_fig = Figure(tight_layout=True)
         self._lut_ax  = self._lut_fig.add_subplot(111)
-        # Create imshow and colorbar exactly once so colorbar never steals extra space
         _blank = np.zeros((100, 100))
         self._lut_im = self._lut_ax.imshow(
             _blank, cmap="viridis", origin="lower", aspect="auto",
@@ -842,6 +846,7 @@ class ConfigTab(ttk.Frame):
             self._is_operant_var.set(bool(self._params.get("is_operant", False)))
             self._instantaneous_mode_var.set(bool(self._params.get("instantaneous_mode", False)))
             self._motor_feedback_var.set(bool(self._params.get("motor_feedback", True)))
+            self._exp_var.set(self._params.get("experimenter", "rozmar"))
             gamma2_val = self._params.get("camera2_gamma")
             enabled2   = gamma2_val is not None
             self._gamma2_en_var.set(enabled2)
@@ -864,6 +869,7 @@ class ConfigTab(ttk.Frame):
         self._params["is_operant"] = self._is_operant_var.get()
         self._params["instantaneous_mode"] = self._instantaneous_mode_var.get()
         self._params["motor_feedback"] = self._motor_feedback_var.get()
+        self._params["experimenter"] = self._exp_var.get()
 
     def _on_gamma_toggled(self, cam: int = 1):
         if cam == 1:
@@ -1107,6 +1113,7 @@ class ConfigTab(ttk.Frame):
         p["is_operant"]           = self._is_operant_var.get()
         p["instantaneous_mode"]   = self._instantaneous_mode_var.get()
         p["motor_feedback"]       = self._motor_feedback_var.get()
+        p["experimenter"]         = self._exp_var.get()
         return p
 
     def _on_save_profile(self):
@@ -1864,7 +1871,7 @@ class App(tk.Tk):
         super().__init__()
         self.title("Telekinesis Task Setup")
         self.geometry("1300x900")
-        self.minsize(1050, 700)
+        self.minsize(1050, 1000)
 
         style = ttk.Style(self)
         style.theme_use("clam")
