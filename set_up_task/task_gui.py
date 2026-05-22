@@ -15,6 +15,7 @@ import ctypes
 import datetime
 import json
 import queue
+import shutil
 import subprocess
 import threading
 import time
@@ -50,6 +51,8 @@ PROJECT_ROOT = Path(__file__).parent.parent
 LOCAL_DIR    = PROJECT_ROOT / "local"
 MICE_DIR     = LOCAL_DIR / "mice"
 MICE_DIR.mkdir(parents=True, exist_ok=True)
+PRESETS_DIR  = LOCAL_DIR / "presets"
+PRESETS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Default mouse profile ──────────────────────────────────────────────────────
 DEFAULT_PARAMS: dict = {
@@ -65,11 +68,13 @@ DEFAULT_PARAMS: dict = {
     "action_duration":        0.1,
     "is_operant":             False,
     "instantaneous_mode":     False,
+    "motor_feedback":         True,
     "lut_gaussians": [
         {"center_lat":  750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
         {"center_lat":  750, "center_ap":  750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
         {"center_lat": -750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
     ],
+    "lut_steps": [],
     "lut_offset":    -0.05,
     "lut_scale":      2.5,
     "lat_range_min": -2000.0,
@@ -110,6 +115,14 @@ def gaussian_2d(x_lat, x_ap, peak, trough, center_lat, center_ap, sigma_lat, sig
     return trough + y
 
 
+def step_2d(x_lat, x_ap, peak, trough, center_lat, center_ap, width_lat, width_ap):
+    inside = (
+        (np.abs(x_lat[np.newaxis, :] - center_lat) <= width_lat / 2) &
+        (np.abs(x_ap[:, np.newaxis] - center_ap) <= width_ap / 2)
+    )
+    return np.where(inside, peak, trough).astype(float)
+
+
 def compute_lut_matrix(params: dict, bin_num: int = 100):
     lat_vec = np.linspace(params.get("lat_range_min", -2000), params.get("lat_range_max", 2000), bin_num)
     ap_vec  = np.linspace(params.get("ap_range_min",  -2000), params.get("ap_range_max",  2000), bin_num)
@@ -121,6 +134,16 @@ def compute_lut_matrix(params: dict, bin_num: int = 100):
                 g["peak"], g["trough"],
                 g["center_lat"], g["center_ap"],
                 g["sigma_lat"],  g["sigma_ap"],
+            )
+        except Exception:
+            pass
+    for s in params.get("lut_steps", []):
+        try:
+            matrix += step_2d(
+                lat_vec, ap_vec,
+                s["peak"], s["trough"],
+                s["center_lat"], s["center_ap"],
+                s["width_lat"],  s["width_ap"],
             )
         except Exception:
             pass
@@ -149,6 +172,74 @@ def load_mouse_profiles() -> dict:
 def save_mouse_profile(name: str, params: dict):
     MICE_DIR.mkdir(parents=True, exist_ok=True)
     with open(MICE_DIR / f"{name}.json", "w") as f:
+        json.dump(params, f, indent=2)
+
+
+# ── Preset I/O ─────────────────────────────────────────────────────────────────
+
+_SEED_PRESETS: dict = {
+    "3G-Diagonal": {
+        "trial_length": 1000.0, "lick_response_time": 4.0, "inter_trial_interval": 2.0,
+        "reward_size": 1.0, "far_position": 5.0, "close_position": 14.5,
+        "mouse_motor_hard_limit": 15.0, "quiescence_duration": 0.5, "quiescence_threshold": 1.0,
+        "action_duration": 0.1, "is_operant": False, "instantaneous_mode": False, "motor_feedback": True,
+        "lut_gaussians": [
+            {"center_lat":  750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
+            {"center_lat":  750, "center_ap":  750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
+            {"center_lat": -750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
+        ],
+        "lut_steps": [], "lut_offset": -0.05, "lut_scale": 2.5,
+        "lat_range_min": -2000.0, "lat_range_max": 2000.0,
+        "ap_range_min": -2000.0, "ap_range_max": 2000.0,
+    },
+    "1G-Center": {
+        "trial_length": 1000.0, "lick_response_time": 4.0, "inter_trial_interval": 2.0,
+        "reward_size": 1.0, "far_position": 5.0, "close_position": 14.5,
+        "mouse_motor_hard_limit": 15.0, "quiescence_duration": 0.5, "quiescence_threshold": 1.0,
+        "action_duration": 0.1, "is_operant": False, "instantaneous_mode": False, "motor_feedback": True,
+        "lut_gaussians": [
+            {"center_lat": 0, "center_ap": 0, "sigma_lat": 500, "sigma_ap": 500, "peak": 5.0, "trough": 0.0},
+        ],
+        "lut_steps": [], "lut_offset": 0.0, "lut_scale": 2.5,
+        "lat_range_min": -2000.0, "lat_range_max": 2000.0,
+        "ap_range_min": -2000.0, "ap_range_max": 2000.0,
+    },
+    "3S-Diagonal": {
+        "trial_length": 1000.0, "lick_response_time": 4.0, "inter_trial_interval": 2.0,
+        "reward_size": 1.0, "far_position": 5.0, "close_position": 14.5,
+        "mouse_motor_hard_limit": 15.0, "quiescence_duration": 0.5, "quiescence_threshold": 1.0,
+        "action_duration": 0.1, "is_operant": False, "instantaneous_mode": False, "motor_feedback": True,
+        "lut_gaussians": [],
+        "lut_steps": [
+            {"center_lat":  750, "center_ap": -750, "width_lat": 400, "width_ap": 400, "peak": 5.0, "trough": 0.0},
+            {"center_lat":  750, "center_ap":  750, "width_lat": 400, "width_ap": 400, "peak": 5.0, "trough": 0.0},
+            {"center_lat": -750, "center_ap": -750, "width_lat": 400, "width_ap": 400, "peak": 5.0, "trough": 0.0},
+        ],
+        "lut_offset": -0.05, "lut_scale": 2.5,
+        "lat_range_min": -2000.0, "lat_range_max": 2000.0,
+        "ap_range_min": -2000.0, "ap_range_max": 2000.0,
+    },
+}
+
+
+def load_presets() -> dict:
+    presets = {}
+    for name, params in _SEED_PRESETS.items():
+        path = PRESETS_DIR / f"{name}.json"
+        if not path.exists():
+            with open(path, "w") as f:
+                json.dump(params, f, indent=2)
+    for f in sorted(PRESETS_DIR.glob("*.json")):
+        try:
+            with open(f) as fp:
+                presets[f.stem] = json.load(fp)
+        except Exception:
+            pass
+    return presets
+
+
+def save_preset(name: str, params: dict):
+    with open(PRESETS_DIR / f"{name}.json", "w") as f:
         json.dump(params, f, indent=2)
 
 
@@ -250,9 +341,12 @@ class ConfigTab(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self._profiles: dict         = load_mouse_profiles()
+        self._presets: dict          = load_presets()
         self._params: dict           = deepcopy(DEFAULT_PARAMS)
         self._sel_gauss_idx: int | None = None
         self._gauss_loading: bool    = False   # guard against re-entrant gaussian trace
+        self._sel_step_idx: int | None  = None
+        self._step_loading: bool     = False
         self._params_loading: bool   = False   # guard: suppress param traces while loading a profile
         self._build_ui()
         self._refresh_mouse_list()
@@ -314,6 +408,24 @@ class ConfigTab(ttk.Frame):
             ttk.Entry(row2, textvariable=var).pack(side="left", fill="x", expand=True, padx=(4, 0))
             setattr(self, attr, var)
 
+        # Presets
+        prg = ttk.LabelFrame(parent, text="Presets")
+        prg.pack(fill="x", pady=(0, 5))
+
+        pr_row = ttk.Frame(prg)
+        pr_row.pack(fill="x", padx=4, pady=(4, 2))
+        self._preset_var   = tk.StringVar()
+        self._preset_combo = ttk.Combobox(pr_row, textvariable=self._preset_var, width=18, state="readonly")
+        self._preset_combo.pack(side="left", padx=(0, 4), fill="x", expand=True)
+        ttk.Button(pr_row, text="Load", width=6, command=self._on_load_preset).pack(side="left")
+
+        pr_row2 = ttk.Frame(prg)
+        pr_row2.pack(fill="x", padx=4, pady=(0, 4))
+        ttk.Button(pr_row2, text="Save As…", command=self._on_save_preset_as).pack(side="left")
+        ttk.Button(pr_row2, text="Delete",   command=self._on_delete_preset).pack(side="left", padx=4)
+
+        self._refresh_preset_list()
+
         # Task parameters
         pg = ttk.LabelFrame(parent, text="Task Parameters")
         pg.pack(fill="x", pady=(0, 5))
@@ -352,6 +464,16 @@ class ConfigTab(ttk.Frame):
                         command=lambda: (self._on_task_param_changed(),
                                         self._schedule_lut_update())).pack(side="left", padx=(4, 0))
         ttk.Label(inst_row, text="(use port position, not speed)",
+                  foreground="gray", font=("TkDefaultFont", 7)).pack(side="left", padx=(6, 0))
+
+        # motor_feedback
+        mf_row = ttk.Frame(pg)
+        mf_row.pack(fill="x", pady=1, padx=4)
+        ttk.Label(mf_row, text="Motor Feedback:", width=20, anchor="e").pack(side="left")
+        self._motor_feedback_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(mf_row, variable=self._motor_feedback_var,
+                        command=self._on_task_param_changed).pack(side="left", padx=(4, 0))
+        ttk.Label(mf_row, text="(move spout with force signal)",
                   foreground="gray", font=("TkDefaultFont", 7)).pack(side="left", padx=(6, 0))
 
         # Camera parameters — per mouse, independently for each camera
@@ -435,7 +557,7 @@ class ConfigTab(ttk.Frame):
     # ── Right panel: LUT editor ────────────────────────────────────────────────
 
     def _build_right(self, parent):
-        lut_frame = ttk.LabelFrame(parent, text="LUT Editor – 2D Gaussian Speed Map")
+        lut_frame = ttk.LabelFrame(parent, text="LUT Editor – 2D Speed Map")
         lut_frame.pack(fill="both", expand=True)
 
         # Gaussian list + form (left side of LUT frame)
@@ -500,6 +622,47 @@ class ConfigTab(ttk.Frame):
         for v in (self._lat_min_var, self._lat_max_var, self._ap_min_var, self._ap_max_var):
             v.trace_add("write", lambda *_: self._schedule_lut_update())
 
+        # Step function list + form
+        ttk.Separator(gauss_frame, orient="horizontal").pack(fill="x", pady=(6, 2))
+        ttk.Label(gauss_frame, text="Step Functions:").pack(anchor="w")
+
+        slb_frame = ttk.Frame(gauss_frame)
+        slb_frame.pack(fill="x")
+        self._step_lb = tk.Listbox(slb_frame, height=5, selectmode="single",
+                                   exportselection=False, font=("Consolas", 8))
+        self._step_lb.pack(side="left", fill="x", expand=True)
+        svsb = ttk.Scrollbar(slb_frame, orient="vertical", command=self._step_lb.yview)
+        svsb.pack(side="right", fill="y")
+        self._step_lb.config(yscrollcommand=svsb.set)
+        self._step_lb.bind("<<ListboxSelect>>", self._on_step_list_select)
+
+        sbtn_row = ttk.Frame(gauss_frame)
+        sbtn_row.pack(fill="x", pady=2)
+        ttk.Button(sbtn_row, text="+ Add",    width=7,  command=self._add_step).pack(side="left")
+        ttk.Button(sbtn_row, text="− Remove", width=8,  command=self._remove_step).pack(side="left", padx=2)
+        ttk.Button(sbtn_row, text="↑", width=3, command=lambda: self._move_step(-1)).pack(side="left")
+        ttk.Button(sbtn_row, text="↓", width=3, command=lambda: self._move_step(1)).pack(side="left", padx=1)
+
+        sf = ttk.LabelFrame(gauss_frame, text="Selected Step")
+        sf.pack(fill="x", pady=(4, 0))
+        self._step_vars: dict = {}
+        for key, label, default, lo, hi, step in [
+            ("center_lat", "Center Lat:",  0.0, -9999, 9999,  50.0),
+            ("center_ap",  "Center AP:",   0.0, -9999, 9999,  50.0),
+            ("width_lat",  "Width Lat:", 400.0,     1, 9999,  50.0),
+            ("width_ap",   "Width AP:",  400.0,     1, 9999,  50.0),
+            ("peak",       "Peak:",        5.0,  -500,  500,   0.5),
+            ("trough",     "Trough:",      0.0,  -500,  500,   0.1),
+        ]:
+            srow = ttk.Frame(sf)
+            srow.pack(fill="x", pady=1)
+            ttk.Label(srow, text=label, width=12, anchor="e").pack(side="left")
+            var = tk.DoubleVar(value=default)
+            ttk.Spinbox(srow, from_=lo, to=hi, increment=step,
+                        textvariable=var, width=9, format="%.1f").pack(side="left", padx=(4, 0))
+            var.trace_add("write", self._on_step_form_changed)
+            self._step_vars[key] = var
+
         # Matplotlib LUT preview (right side)
         canvas_frame = ttk.Frame(lut_frame)
         canvas_frame.pack(side="left", fill="both", expand=True, padx=(2, 4), pady=4)
@@ -521,7 +684,58 @@ class ConfigTab(ttk.Frame):
         self._lut_canvas.get_tk_widget().pack(fill="both", expand=True)
 
         self._refresh_gauss_list()
+        self._refresh_step_list()
         self._update_lut_preview()
+
+    # ── Preset helpers ─────────────────────────────────────────────────────────
+
+    def _refresh_preset_list(self):
+        names = sorted(self._presets)
+        self._preset_combo["values"] = names
+        if names and self._preset_var.get() not in names:
+            self._preset_var.set(names[0])
+
+    def _on_load_preset(self):
+        name = self._preset_var.get()
+        if not name or name not in self._presets:
+            return
+        preset = deepcopy(self._presets[name])
+        # Preserve mouse-specific camera settings from the current params
+        for k in ("camera_exposure", "camera_gain", "camera_gamma",
+                  "camera2_exposure", "camera2_gain", "camera2_gamma"):
+            if k in self._params:
+                preset.setdefault(k, self._params[k])
+        self._params = preset
+        self._apply_params_to_ui()
+
+    def _on_save_preset_as(self):
+        name = simpledialog.askstring("Save Preset", "Preset name:", parent=self)
+        if not name or not name.strip():
+            return
+        name = name.strip()
+        # Preset stores task/LUT params only — no camera settings
+        p = self._build_current_params()
+        preset = {k: v for k, v in p.items()
+                  if k not in ("camera_exposure", "camera_gain", "camera_gamma",
+                               "camera2_exposure", "camera2_gain", "camera2_gamma")}
+        self._presets[name] = preset
+        save_preset(name, preset)
+        self._refresh_preset_list()
+        self._preset_var.set(name)
+
+    def _on_delete_preset(self):
+        name = self._preset_var.get()
+        if not name or name not in self._presets:
+            return
+        if name in _SEED_PRESETS:
+            messagebox.showwarning("Cannot Delete", f"'{name}' is a built-in preset.", parent=self)
+            return
+        if messagebox.askyesno("Delete Preset", f"Delete preset '{name}'?", parent=self):
+            self._presets.pop(name, None)
+            p = PRESETS_DIR / f"{name}.json"
+            if p.exists():
+                p.unlink()
+            self._refresh_preset_list()
 
     # ── Mouse profile helpers ──────────────────────────────────────────────────
 
@@ -627,12 +841,14 @@ class ConfigTab(ttk.Frame):
             self._gamma_spin.config(state="normal" if enabled else "disabled")
             self._is_operant_var.set(bool(self._params.get("is_operant", False)))
             self._instantaneous_mode_var.set(bool(self._params.get("instantaneous_mode", False)))
+            self._motor_feedback_var.set(bool(self._params.get("motor_feedback", True)))
             gamma2_val = self._params.get("camera2_gamma")
             enabled2   = gamma2_val is not None
             self._gamma2_en_var.set(enabled2)
             self._gamma2_var.set(gamma2_val if enabled2 else 1.0)
             self._gamma2_spin.config(state="normal" if enabled2 else "disabled")
             self._refresh_gauss_list()
+            self._refresh_step_list()
             self._update_lut_preview()
         finally:
             self._params_loading = False
@@ -647,6 +863,7 @@ class ConfigTab(ttk.Frame):
                 pass
         self._params["is_operant"] = self._is_operant_var.get()
         self._params["instantaneous_mode"] = self._instantaneous_mode_var.get()
+        self._params["motor_feedback"] = self._motor_feedback_var.get()
 
     def _on_gamma_toggled(self, cam: int = 1):
         if cam == 1:
@@ -737,6 +954,88 @@ class ConfigTab(ttk.Frame):
             self._on_gauss_list_select()
             self._schedule_lut_update()
 
+    # ── Step function list helpers ─────────────────────────────────────────────
+
+    def _step_label(self, i: int, s: dict) -> str:
+        return (f"S{i+1}  c=({s['center_lat']:.0f}, {s['center_ap']:.0f})"
+                f"  w=({s['width_lat']:.0f},{s['width_ap']:.0f})"
+                f"  pk={s['peak']:.1f}")
+
+    def _refresh_step_list(self, keep_selection: bool = False):
+        saved = self._step_lb.curselection()
+        self._step_lb.delete(0, tk.END)
+        for i, s in enumerate(self._params.get("lut_steps", [])):
+            self._step_lb.insert(tk.END, self._step_label(i, s))
+        if keep_selection and saved:
+            idx = min(saved[0], self._step_lb.size() - 1)
+            if idx >= 0:
+                self._step_lb.selection_set(idx)
+
+    def _on_step_list_select(self, _=None):
+        sel = self._step_lb.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        self._sel_step_idx = idx
+        s = self._params["lut_steps"][idx]
+        self._step_loading = True
+        for key, var in self._step_vars.items():
+            var.set(s.get(key, 0.0))
+        self._step_loading = False
+
+    def _on_step_form_changed(self, *_):
+        if self._step_loading:
+            return
+        idx = self._sel_step_idx
+        steps = self._params.get("lut_steps", [])
+        if idx is None or not (0 <= idx < len(steps)):
+            return
+        try:
+            steps[idx] = {k: v.get() for k, v in self._step_vars.items()}
+        except Exception:
+            return
+        self._step_lb.delete(idx)
+        self._step_lb.insert(idx, self._step_label(idx, steps[idx]))
+        self._step_lb.selection_set(idx)
+        self._schedule_lut_update()
+
+    def _add_step(self):
+        new_s = {"center_lat": 0.0, "center_ap": 0.0,
+                 "width_lat": 400.0, "width_ap": 400.0,
+                 "peak": 5.0, "trough": 0.0}
+        self._params.setdefault("lut_steps", []).append(new_s)
+        self._refresh_step_list()
+        new_idx = len(self._params["lut_steps"]) - 1
+        self._step_lb.selection_set(new_idx)
+        self._sel_step_idx = new_idx
+        self._on_step_list_select()
+        self._schedule_lut_update()
+
+    def _remove_step(self):
+        idx = self._sel_step_idx
+        steps = self._params.get("lut_steps", [])
+        if idx is not None and 0 <= idx < len(steps):
+            steps.pop(idx)
+            self._sel_step_idx = max(0, idx - 1) if steps else None
+            self._refresh_step_list(keep_selection=True)
+            if self._sel_step_idx is not None:
+                self._on_step_list_select()
+            self._schedule_lut_update()
+
+    def _move_step(self, direction: int):
+        idx = self._sel_step_idx
+        steps = self._params.get("lut_steps", [])
+        if idx is None or not steps:
+            return
+        new_idx = idx + direction
+        if 0 <= new_idx < len(steps):
+            steps[idx], steps[new_idx] = steps[new_idx], steps[idx]
+            self._sel_step_idx = new_idx
+            self._refresh_step_list()
+            self._step_lb.selection_set(new_idx)
+            self._on_step_list_select()
+            self._schedule_lut_update()
+
     # ── LUT preview ────────────────────────────────────────────────────────────
 
     def _schedule_lut_update(self):
@@ -757,13 +1056,16 @@ class ConfigTab(ttk.Frame):
                 self._lut_im.set_extent([lat_vec[0], lat_vec[-1], ap_vec[0], ap_vec[-1]])
                 self._lut_im.set_clim(0, 1)
                 self._lut_cbar.set_label("Lickport Position (0→1)", fontsize=8)
+                n_g = len(p.get("lut_gaussians", []))
+                n_s = len(p.get("lut_steps", []))
                 self._lut_ax.set_title(
                     f"Position LUT  |  scale×{p['lut_scale']:.2f}  "
-                    f"N={len(p.get('lut_gaussians', []))} gaussians  "
-                    f"[red = above threshold]",
+                    f"{n_g}G + {n_s}S  [red = above threshold]",
                     fontsize=8,
                 )
             else:
+                n_g = len(p.get("lut_gaussians", []))
+                n_s = len(p.get("lut_steps", []))
                 self._lut_im.set_cmap("viridis")
                 self._lut_im.set_data(matrix)
                 self._lut_im.set_extent([lat_vec[0], lat_vec[-1], ap_vec[0], ap_vec[-1]])
@@ -771,7 +1073,7 @@ class ConfigTab(ttk.Frame):
                 self._lut_cbar.set_label("Speed (mm/s)", fontsize=8)
                 self._lut_ax.set_title(
                     f"Speed LUT  |  offset={p['lut_offset']:.2f}  scale×{p['lut_scale']:.2f}  "
-                    f"N={len(p.get('lut_gaussians', []))} gaussians",
+                    f"{n_g}G + {n_s}S",
                     fontsize=8,
                 )
             self._lut_cbar.update_normal(self._lut_im)
@@ -804,6 +1106,7 @@ class ConfigTab(ttk.Frame):
         p["camera2_gamma"] = self._gamma2_var.get() if self._gamma2_en_var.get() else None
         p["is_operant"]           = self._is_operant_var.get()
         p["instantaneous_mode"]   = self._instantaneous_mode_var.get()
+        p["motor_feedback"]       = self._motor_feedback_var.get()
         return p
 
     def _on_save_profile(self):
@@ -815,9 +1118,10 @@ class ConfigTab(ttk.Frame):
 
     def _on_generate_config(self):
         try:
-            self._generate_config()
+            session_folder = self._generate_config()
             messagebox.showinfo("Config Generated",
-                                f"Config files written to:\n{LOCAL_DIR}", parent=self)
+                                f"Config files written to:\n{LOCAL_DIR}"
+                                f"\n\nSession folder:\n{session_folder}", parent=self)
         except Exception as exc:
             messagebox.showerror("Error", str(exc), parent=self)
 
@@ -852,9 +1156,11 @@ class ConfigTab(ttk.Frame):
 
         # 4. Patch per-mouse camera settings into all cameras in rig JSON
         rig_path = LOCAL_DIR / "AindBehaviorTelekinesisRig.json"
+        data_directory = "C:\\Data"
         if rig_path.exists():
             with open(rig_path, encoding="utf-8") as f:
                 rig_json = json.load(f)
+            data_directory = rig_json.get("data_directory", data_directory)
             cameras = (rig_json.get("triggered_camera_controller", {})
                                .get("cameras", {}))
             for i, cam in enumerate(cameras.values()):
@@ -869,12 +1175,32 @@ class ConfigTab(ttk.Frame):
             with open(rig_path, "w", encoding="utf-8") as f:
                 json.dump(rig_json, f, indent=2)
 
+        # 5. Copy rig JSON and mouse profile into the Bonsai session folder
+        session_folder = Path(data_directory) / session_name
+        session_folder.mkdir(parents=True, exist_ok=True)
+        if rig_path.exists():
+            shutil.copy2(rig_path, session_folder / rig_path.name)
+        mouse_profile_path = MICE_DIR / f"{mouse_name}.json"
+        if mouse_profile_path.exists():
+            shutil.copy2(mouse_profile_path, session_folder / mouse_profile_path.name)
+
+        return session_folder
+
     def _generate_task_logic(self, p: dict, path: Path):
         import aind_behavior_telekinesis.task_logic as tl  # noqa: F401 (keep local import)
 
         far_pos   = p["far_position"]
         close_pos = p["close_position"]
         lut_path  = str(LOCAL_DIR / "2d_gaussian.tiff")
+
+        feedback = (
+            tl.ManipulatorFeedback(
+                converter_lut_input=[0, 1],
+                converter_lut_output=[far_pos, close_pos],
+            )
+            if p.get("motor_feedback", True)
+            else None
+        )
 
         prototype_trial = tl.Action(
             reward_probability=tl.scalar_value(1),
@@ -885,10 +1211,7 @@ class ConfigTab(ttk.Frame):
             time_to_collect=tl.scalar_value(p["lick_response_time"]),
             lower_action_threshold=tl.scalar_value(0),
             upper_action_threshold=tl.scalar_value(1),
-            continuous_feedback=tl.ManipulatorFeedback(
-                converter_lut_input=[0, 1],
-                converter_lut_output=[far_pos, close_pos],
-            ),
+            continuous_feedback=feedback,
             action_type="instantaneous" if p.get("instantaneous_mode") else "integrated",
         )
 
@@ -929,11 +1252,7 @@ class ConfigTab(ttk.Frame):
                             action1_min=p["ap_range_min"],
                         )
                     },
-                    spout=tl.SpoutOperationControl(
-                        default_retracted_position=far_pos,
-                        default_extended_position=close_pos,
-                        enabled=False,
-                    ),
+                    spout=tl.SpoutOperationControl(enabled=False),
                 ),
             )
         )
