@@ -1427,16 +1427,27 @@ class ConfigTab(ttk.Frame):
         self._profiles[name] = deepcopy(p)
         save_mouse_profile(name, p)
 
-        run_bat = PROJECT_ROOT / "set_up_task" / "run.bat"
-        if run_bat.exists():
-            subprocess.Popen([str(run_bat)], shell=True, cwd=str(PROJECT_ROOT))
-        else:
+        bonsai_exe      = PROJECT_ROOT / "bonsai" / "Bonsai.exe"
+        bonsai_workflow = PROJECT_ROOT / "src" / "main.bonsai"
+        if not bonsai_exe.exists():
             messagebox.showwarning(
                 "Launch Failed",
-                f"Config written to {LOCAL_DIR}\nbut run.bat not found.\n"
+                f"Config written to {LOCAL_DIR}\n"
+                f"but Bonsai.exe not found at:\n{bonsai_exe}\n"
                 "Please launch Bonsai manually.",
                 parent=self,
             )
+            return
+        subprocess.Popen(
+            [
+                str(bonsai_exe),
+                str(bonsai_workflow),
+                "-p", f"RigPath={LOCAL_DIR / 'AindBehaviorTelekinesisRig.json'}",
+                "-p", f"SessionPath={LOCAL_DIR / 'Session.json'}",
+                "-p", f"TaskPath={LOCAL_DIR / 'AindBehaviorTelekinesisTaskLogic.json'}",
+            ],
+            cwd=str(PROJECT_ROOT),
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
