@@ -14,6 +14,7 @@ Run:
 import ctypes
 import datetime
 import json
+import re
 import queue
 import shutil
 import subprocess
@@ -70,6 +71,7 @@ DEFAULT_PARAMS: dict = {
     "instantaneous_mode":     False,
     "motor_feedback":         True,
     "experimenter":           "rozmar",
+    "notes":                  "",
     "lut_gaussians": [
         {"center_lat":  750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
         {"center_lat":  750, "center_ap":  750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
@@ -93,6 +95,8 @@ DEFAULT_PARAMS: dict = {
 
 # ── Default rig settings (global, not per-mouse) ──────────────────────────────
 DEFAULT_RIG: dict = {
+    "rig_name":         "Behavior_0",
+    "backup_root":      r"Z:\Data\Behavior",
     "port_behavior":    "COM3",
     "port_load_cells":  "COM4",
     "port_lickometer":  "COM6",
@@ -178,58 +182,8 @@ def save_mouse_profile(name: str, params: dict):
 
 # ── Preset I/O ─────────────────────────────────────────────────────────────────
 
-_SEED_PRESETS: dict = {
-    "3G-Diagonal": {
-        "trial_length": 1000.0, "lick_response_time": 4.0, "inter_trial_interval": 2.0,
-        "reward_size": 1.0, "far_position": 5.0, "close_position": 14.5,
-        "mouse_motor_hard_limit": 15.0, "quiescence_duration": 0.5, "quiescence_threshold": 1.0,
-        "action_duration": 0.1, "is_operant": False, "instantaneous_mode": False, "motor_feedback": True,
-        "lut_gaussians": [
-            {"center_lat":  750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
-            {"center_lat":  750, "center_ap":  750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
-            {"center_lat": -750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
-        ],
-        "lut_steps": [], "lut_offset": -0.05, "lut_scale": 2.5,
-        "lat_range_min": -2000.0, "lat_range_max": 2000.0,
-        "ap_range_min": -2000.0, "ap_range_max": 2000.0,
-    },
-    "1G-Center": {
-        "trial_length": 1000.0, "lick_response_time": 4.0, "inter_trial_interval": 2.0,
-        "reward_size": 1.0, "far_position": 5.0, "close_position": 14.5,
-        "mouse_motor_hard_limit": 15.0, "quiescence_duration": 0.5, "quiescence_threshold": 1.0,
-        "action_duration": 0.1, "is_operant": False, "instantaneous_mode": False, "motor_feedback": True,
-        "lut_gaussians": [
-            {"center_lat": 0, "center_ap": 0, "sigma_lat": 500, "sigma_ap": 500, "peak": 5.0, "trough": 0.0},
-        ],
-        "lut_steps": [], "lut_offset": 0.0, "lut_scale": 2.5,
-        "lat_range_min": -2000.0, "lat_range_max": 2000.0,
-        "ap_range_min": -2000.0, "ap_range_max": 2000.0,
-    },
-    "3S-Diagonal": {
-        "trial_length": 1000.0, "lick_response_time": 4.0, "inter_trial_interval": 2.0,
-        "reward_size": 1.0, "far_position": 5.0, "close_position": 14.5,
-        "mouse_motor_hard_limit": 15.0, "quiescence_duration": 0.5, "quiescence_threshold": 1.0,
-        "action_duration": 0.1, "is_operant": False, "instantaneous_mode": False, "motor_feedback": True,
-        "lut_gaussians": [],
-        "lut_steps": [
-            {"center_lat":  750, "center_ap": -750, "width_lat": 400, "width_ap": 400, "peak": 5.0, "trough": 0.0},
-            {"center_lat":  750, "center_ap":  750, "width_lat": 400, "width_ap": 400, "peak": 5.0, "trough": 0.0},
-            {"center_lat": -750, "center_ap": -750, "width_lat": 400, "width_ap": 400, "peak": 5.0, "trough": 0.0},
-        ],
-        "lut_offset": -0.05, "lut_scale": 2.5,
-        "lat_range_min": -2000.0, "lat_range_max": 2000.0,
-        "ap_range_min": -2000.0, "ap_range_max": 2000.0,
-    },
-}
-
-
 def load_presets() -> dict:
     presets = {}
-    for name, params in _SEED_PRESETS.items():
-        path = PRESETS_DIR / f"{name}.json"
-        if not path.exists():
-            with open(path, "w") as f:
-                json.dump(params, f, indent=2)
     for f in sorted(PRESETS_DIR.glob("*.json")):
         try:
             with open(f) as fp:
@@ -335,6 +289,191 @@ class ZmqSubscriberThread(threading.Thread):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Backup
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class BackupDaemon(threading.Thread):
+    """Periodically rsyncs all session folders to the backup drive using robocopy."""
+
+    def __init__(self, data_dir: Path, rig_name: str, backup_root: str,
+                 interval_s: int, log_cb, status_cb):
+        super().__init__(daemon=True)
+        self._data_dir    = Path(data_dir)
+        self._rig_name    = rig_name
+        self._backup_root = Path(backup_root)
+        self._interval    = interval_s
+        self._log_cb      = log_cb
+        self._status_cb   = status_cb
+        self._stop        = threading.Event()
+
+    def run(self):
+        self._status_cb("Running")
+        while not self._stop.is_set():
+            self._sync_all()
+            ts   = datetime.datetime.now().strftime("%H:%M")
+            mins = self._interval // 60
+            self._status_cb(f"Last sync: {ts}  ·  next in {mins} min")
+            self._stop.wait(self._interval)
+        self._status_cb("Stopped")
+
+    def _sync_all(self):
+        if not self._data_dir.exists():
+            self._log_cb(f"[ERROR] Data directory not found: {self._data_dir}\n")
+            return
+        sessions = []
+        for d in sorted(self._data_dir.iterdir()):
+            if not d.is_dir():
+                continue
+            if not (d / "behavior").is_dir():
+                continue
+            # Everything before the date stamp is the subject (e.g. "human_11_2025-07-09T...")
+            m = re.search(r'_\d{4}-\d{2}-\d{2}', d.name)
+            subject = d.name[:m.start()] if m else d.name
+            if "test" in subject.lower():
+                continue
+            sessions.append((d, subject))
+
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        self._log_cb(f"\n[{ts}] Syncing {len(sessions)} session(s)\n")
+        for session_path, subject in sessions:
+            if self._stop.is_set():
+                break
+            dst = self._backup_root / self._rig_name / subject / session_path.name
+            self._log_cb(f"  {session_path.name}\n    → {dst}\n")
+            try:
+                dst.mkdir(parents=True, exist_ok=True)
+                proc = subprocess.run(
+                    ["robocopy", str(session_path), str(dst),
+                     "/E", "/Z", "/NP", "/NDL", "/NFL", "/R:3", "/W:5"],
+                    capture_output=True, text=True, timeout=7200,
+                )
+                if proc.returncode < 8:
+                    self._log_cb("    ✓ OK\n")
+                else:
+                    self._log_cb(f"    ✗ robocopy exit {proc.returncode}\n")
+                    if proc.stdout.strip():
+                        self._log_cb(f"    {proc.stdout.strip()[-400:]}\n")
+            except Exception as exc:
+                self._log_cb(f"    ✗ {exc}\n")
+
+    def stop(self):
+        self._stop.set()
+
+
+class BackupTab(ttk.Frame):
+    """Tab that controls the BackupDaemon."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self._daemon: BackupDaemon | None = None
+        self._queue: queue.Queue = queue.Queue()
+        self._auto_var = tk.BooleanVar(value=False)
+        self._interval_var = tk.IntVar(value=5)
+        self._build_ui()
+        self._poll()
+
+    def _read_rig(self):
+        rig_path = LOCAL_DIR / "AindBehaviorTelekinesisRig.json"
+        try:
+            with open(rig_path, encoding="utf-8") as f:
+                rig = json.load(f)
+            return (
+                Path(rig.get("data_directory", "C:\\Data")),
+                rig.get("rig_name",    DEFAULT_RIG["rig_name"]),
+                rig.get("backup_root", DEFAULT_RIG["backup_root"]),
+            )
+        except Exception:
+            return Path("C:\\Data"), DEFAULT_RIG["rig_name"], DEFAULT_RIG["backup_root"]
+
+    def _build_ui(self):
+        _, rig_name, backup_root = self._read_rig()
+
+        info = ttk.Frame(self)
+        info.pack(fill="x", padx=10, pady=(8, 0))
+        ttk.Label(info, text="Rig:").pack(side="left")
+        ttk.Label(info, text=rig_name,
+                  font=("TkDefaultFont", 9, "bold")).pack(side="left", padx=(2, 16))
+        ttk.Label(info, text="Destination:").pack(side="left")
+        ttk.Label(info, text=f"{backup_root}\\{rig_name}\\<mouse>\\<session>",
+                  foreground="gray").pack(side="left", padx=(2, 0))
+
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=10, pady=6)
+
+        ctrl = ttk.Frame(self)
+        ctrl.pack(fill="x", padx=10, pady=(0, 6))
+
+        ttk.Checkbutton(
+            ctrl, text="Auto-backup", variable=self._auto_var,
+            command=self._on_auto_toggle,
+        ).pack(side="left")
+
+        ttk.Label(ctrl, text="Interval (min):").pack(side="left", padx=(16, 0))
+        ttk.Spinbox(ctrl, from_=1, to=120, increment=1,
+                    textvariable=self._interval_var, width=5).pack(side="left", padx=(4, 12))
+
+        self._status_var = tk.StringVar(value="Idle")
+        ttk.Label(ctrl, textvariable=self._status_var, foreground="gray",
+                  font=("TkDefaultFont", 8)).pack(side="left", padx=(4, 0))
+
+        log_lf = ttk.LabelFrame(self, text="Log")
+        log_lf.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self._log = tk.Text(log_lf, font=("Consolas", 8), state="disabled",
+                            bg="#1e1e1e", fg="#d4d4d4", wrap="none")
+        scy = ttk.Scrollbar(log_lf, command=self._log.yview)
+        scx = ttk.Scrollbar(log_lf, orient="horizontal", command=self._log.xview)
+        self._log.config(yscrollcommand=scy.set, xscrollcommand=scx.set)
+        scy.pack(side="right", fill="y")
+        scx.pack(side="bottom", fill="x")
+        self._log.pack(fill="both", expand=True)
+
+    def _on_auto_toggle(self):
+        if self._auto_var.get():
+            self._start()
+        else:
+            self._stop()
+
+    def _start(self):
+        if self._daemon and self._daemon.is_alive():
+            return
+        data_dir, rig_name, backup_root = self._read_rig()
+        interval_s = max(1, self._interval_var.get()) * 60
+        self._daemon = BackupDaemon(
+            data_dir, rig_name, backup_root, interval_s,
+            log_cb=lambda msg: self._queue.put(("log", msg)),
+            status_cb=lambda s: self._queue.put(("status", s)),
+        )
+        self._daemon.start()
+
+    def _stop(self):
+        if self._daemon:
+            self._daemon.stop()
+            self._daemon = None
+
+    def stop_daemon(self):
+        """Call on app close."""
+        self._stop()
+
+    def _poll(self):
+        try:
+            while True:
+                kind, text = self._queue.get_nowait()
+                if kind == "status":
+                    self._status_var.set(text)
+                    if "Stopped" in text and not self._auto_var.get():
+                        self._status_var.set("Idle")
+                else:
+                    self._log.config(state="normal")
+                    self._log.insert(tk.END, text)
+                    if int(self._log.index(tk.END).split(".")[0]) > 1200:
+                        self._log.delete("1.0", "200.0")
+                    self._log.see(tk.END)
+                    self._log.config(state="disabled")
+        except queue.Empty:
+            pass
+        self.after(200, self._poll)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Tab 1 – Task Configuration
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -409,6 +548,7 @@ class ConfigTab(ttk.Frame):
             ttk.Entry(row2, textvariable=var).pack(side="left", fill="x", expand=True, padx=(4, 0))
             setattr(self, attr, var)
         self._exp_var.trace_add("write", self._on_task_param_changed)
+        self._notes_var.trace_add("write", self._on_task_param_changed)
 
         # Presets
         prg = ttk.LabelFrame(parent, text="Presets")
@@ -544,6 +684,7 @@ class ConfigTab(ttk.Frame):
             command=self._on_start_task,
         )
         start_btn.pack(fill="x", pady=2)
+
 
     @staticmethod
     def _add_spinrow(parent, label: str, default: float, lo: float, hi: float, step: float) -> tk.DoubleVar:
@@ -731,9 +872,6 @@ class ConfigTab(ttk.Frame):
         name = self._preset_var.get()
         if not name or name not in self._presets:
             return
-        if name in _SEED_PRESETS:
-            messagebox.showwarning("Cannot Delete", f"'{name}' is a built-in preset.", parent=self)
-            return
         if messagebox.askyesno("Delete Preset", f"Delete preset '{name}'?", parent=self):
             self._presets.pop(name, None)
             p = PRESETS_DIR / f"{name}.json"
@@ -847,6 +985,7 @@ class ConfigTab(ttk.Frame):
             self._instantaneous_mode_var.set(bool(self._params.get("instantaneous_mode", False)))
             self._motor_feedback_var.set(bool(self._params.get("motor_feedback", True)))
             self._exp_var.set(self._params.get("experimenter", "rozmar"))
+            self._notes_var.set(self._params.get("notes", ""))
             gamma2_val = self._params.get("camera2_gamma")
             enabled2   = gamma2_val is not None
             self._gamma2_en_var.set(enabled2)
@@ -870,6 +1009,7 @@ class ConfigTab(ttk.Frame):
         self._params["instantaneous_mode"] = self._instantaneous_mode_var.get()
         self._params["motor_feedback"] = self._motor_feedback_var.get()
         self._params["experimenter"] = self._exp_var.get()
+        self._params["notes"] = self._notes_var.get()
 
     def _on_gamma_toggled(self, cam: int = 1):
         if cam == 1:
@@ -1114,6 +1254,7 @@ class ConfigTab(ttk.Frame):
         p["instantaneous_mode"]   = self._instantaneous_mode_var.get()
         p["motor_feedback"]       = self._motor_feedback_var.get()
         p["experimenter"]         = self._exp_var.get()
+        p["notes"]                = self._notes_var.get()
         return p
 
     def _on_save_profile(self):
@@ -1179,6 +1320,13 @@ class ConfigTab(ttk.Frame):
                     cam["exposure"] = int(p.get("camera2_exposure", 10000))
                     cam["gain"]     = float(p.get("camera2_gain", 18.0))
                     cam["gamma"]    = p.get("camera2_gamma")
+            # Patch per-mouse motor hard limit into Y1 axis (axis == 2)
+            ax_cfg = (rig_json.get("manipulator", {})
+                              .get("calibration", {})
+                              .get("axis_configuration", []))
+            for ax in ax_cfg:
+                if ax.get("axis") == 2:
+                    ax["max_limit"] = float(p.get("mouse_motor_hard_limit", 15.0))
             with open(rig_path, "w", encoding="utf-8") as f:
                 json.dump(rig_json, f, indent=2)
 
@@ -1590,6 +1738,11 @@ class RigTab(ttk.Frame):
         left = ttk.Frame(top)
         left.pack(side="left", fill="y", padx=(0, 8))
 
+        # Rig identity
+        ig = ttk.LabelFrame(left, text="Rig Identity")
+        ig.pack(fill="x", pady=(0, 6))
+        self._rig_name_var = self._entry_row(ig, "Rig Name:", DEFAULT_RIG["rig_name"])
+
         # Device ports
         pg = ttk.LabelFrame(left, text="Device COM Ports")
         pg.pack(fill="x", pady=(0, 6))
@@ -1656,7 +1809,8 @@ class RigTab(ttk.Frame):
         # Data
         dg = ttk.LabelFrame(left, text="Output")
         dg.pack(fill="x", pady=(0, 6))
-        self._data_dir_var = self._entry_row(dg, "Data Directory:", "C:\\Data")
+        self._data_dir_var    = self._entry_row(dg, "Data Directory:", "C:\\Data")
+        self._backup_root_var = self._entry_row(dg, "Backup Root:", DEFAULT_RIG["backup_root"])
 
         # ── Right column ───────────────────────────────────────────────────────
         right = ttk.Frame(top)
@@ -1748,6 +1902,8 @@ class RigTab(ttk.Frame):
             self._zmq_topic_var.set(zmq.get("topic", "Telekinesis"))
 
             self._data_dir_var.set(rig.get("data_directory", "C:\\Data"))
+            self._rig_name_var.set(rig.get("rig_name", DEFAULT_RIG["rig_name"]))
+            self._backup_root_var.set(rig.get("backup_root", DEFAULT_RIG["backup_root"]))
 
             cam_ctrl  = rig.get("triggered_camera_controller", {})
             cameras   = cam_ctrl.get("cameras", {})
@@ -1815,13 +1971,16 @@ class RigTab(ttk.Frame):
         mode_int = self.MOTOR_MODES.get(self._motor_mode_var.get(), 0)
         ax_cfg   = rig.get("manipulator", {}).get("calibration", {}).get("axis_configuration", [])
         for ax in ax_cfg:
-            ax["motor_operation_mode"] = mode_int  # apply to all axes
+            if ax.get("axis") == 2:  # Y1 only
+                ax["motor_operation_mode"] = mode_int
 
         zmq = rig.setdefault("networking", {}).setdefault("zmq_publisher", {})
         zmq["connection_string"] = self._zmq_conn_var.get()
         zmq["topic"]             = self._zmq_topic_var.get()
 
         rig["data_directory"] = self._data_dir_var.get()
+        rig["rig_name"]       = self._rig_name_var.get()
+        rig["backup_root"]    = self._backup_root_var.get()
 
         lc = rig.get("harp_load_cells")
         if lc is not None:
@@ -1885,9 +2044,11 @@ class App(tk.Tk):
         self._config_tab  = ConfigTab(nb)
         self._monitor_tab = MonitorTab(nb)
         self._rig_tab     = RigTab(nb)
+        self._backup_tab  = BackupTab(nb)
         nb.add(self._config_tab,  text="   Task Configuration   ")
         nb.add(self._monitor_tab, text="   Live Monitor   ")
         nb.add(self._rig_tab,     text="   Rig Config   ")
+        nb.add(self._backup_tab,  text="   Backup   ")
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -1896,6 +2057,7 @@ class App(tk.Tk):
         sub = getattr(self._monitor_tab, "_subscriber", None)
         if sub and sub.is_alive():
             sub.stop()
+        self._backup_tab.stop_daemon()
         self.destroy()
 
 
