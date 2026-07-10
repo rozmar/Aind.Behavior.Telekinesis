@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<WorkflowBuilder Version="2.9.0"
+<WorkflowBuilder Version="2.9.1"
                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                  xmlns:p1="clr-namespace:AindBehaviorTelekinesisDataSchema;assembly=Extensions"
                  xmlns:rx="clr-namespace:Bonsai.Reactive;assembly=Bonsai.Core"
@@ -361,7 +361,7 @@ Item2.Item3 as LowerThr)]]></Text>
           </Edges>
         </Workflow>
       </Expression>
-      <Expression xsi:type="GroupWorkflow">
+      <Expression xsi:type="rx:Defer">
         <Name>HardwareChecks</Name>
         <Workflow>
           <Nodes>
@@ -1160,7 +1160,7 @@ Item2.Item3 as LowerThr)]]></Text>
       </Expression>
       <Expression xsi:type="Combinator">
         <Combinator xsi:type="rx:Delay">
-          <rx:DueTime>PT1S</rx:DueTime>
+          <rx:DueTime>PT1.5S</rx:DueTime>
         </Combinator>
       </Expression>
       <Expression xsi:type="Combinator">

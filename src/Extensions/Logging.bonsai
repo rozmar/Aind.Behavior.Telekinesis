@@ -1,20 +1,22 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<WorkflowBuilder Version="2.9.0"
+<WorkflowBuilder Version="2.9.1"
                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                  xmlns:rx="clr-namespace:Bonsai.Reactive;assembly=Bonsai.Core"
                  xmlns:p1="clr-namespace:AllenNeuralDynamics.Core;assembly=AllenNeuralDynamics.Core"
                  xmlns:sys="clr-namespace:System;assembly=mscorlib"
                  xmlns:p2="clr-namespace:AllenNeuralDynamics.LicketySplit;assembly=AllenNeuralDynamics.LicketySplit"
-                 xmlns:p3="clr-namespace:Harp.AnalogInput;assembly=Harp.AnalogInput"
-                 xmlns:p4="clr-namespace:Harp.LoadCells;assembly=Harp.LoadCells"
-                 xmlns:p5="clr-namespace:AllenNeuralDynamics.WhiteRabbit;assembly=AllenNeuralDynamics.WhiteRabbit"
-                 xmlns:p6="clr-namespace:AllenNeuralDynamics.EnvironmentSensor;assembly=AllenNeuralDynamics.EnvironmentSensor"
-                 xmlns:p7="clr-namespace:AllenNeuralDynamics.HarpUtils;assembly=AllenNeuralDynamics.HarpUtils"
+                 xmlns:beh="clr-namespace:Harp.Behavior;assembly=Harp.Behavior"
+                 xmlns:p3="clr-namespace:Harp.StepperDriver;assembly=Harp.StepperDriver"
+                 xmlns:p4="clr-namespace:Harp.AnalogInput;assembly=Harp.AnalogInput"
+                 xmlns:p5="clr-namespace:Harp.LoadCells;assembly=Harp.LoadCells"
+                 xmlns:p6="clr-namespace:AllenNeuralDynamics.WhiteRabbit;assembly=AllenNeuralDynamics.WhiteRabbit"
+                 xmlns:p7="clr-namespace:AllenNeuralDynamics.EnvironmentSensor;assembly=AllenNeuralDynamics.EnvironmentSensor"
+                 xmlns:p8="clr-namespace:AllenNeuralDynamics.HarpUtils;assembly=AllenNeuralDynamics.HarpUtils"
                  xmlns:harp="clr-namespace:Bonsai.Harp;assembly=Bonsai.Harp"
                  xmlns:scr="clr-namespace:Bonsai.Scripting.Expressions;assembly=Bonsai.Scripting.Expressions"
-                 xmlns:p8="clr-namespace:AllenNeuralDynamics.VersionControl;assembly=AllenNeuralDynamics.VersionControl"
-                 xmlns:p9="clr-namespace:;assembly=Extensions"
-                 xmlns:p10="clr-namespace:AindBehaviorTelekinesisDataSchema;assembly=Extensions"
+                 xmlns:p9="clr-namespace:AllenNeuralDynamics.VersionControl;assembly=AllenNeuralDynamics.VersionControl"
+                 xmlns:p10="clr-namespace:;assembly=Extensions"
+                 xmlns:p11="clr-namespace:AindBehaviorTelekinesisDataSchema;assembly=Extensions"
                  xmlns="https://bonsai-rx.org/2018/workflow">
   <Workflow>
     <Nodes>
@@ -65,36 +67,7 @@
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://raw.githubusercontent.com/harp-tech/reflex-generator/main/schema/device.json
-device: LicketySplit
-whoAmI: 1400
-firmwareVersion: "0.0"
-hardwareTargets: "0.5"
-registers:
-  LickState:
-    address: 32
-    type: U8
-    access: Event
-    maskType: LickChannels
-    description: Emits an event when the state of any lick detector changes. Value will be High when lick detected and Low otherwise.
-  Channel0TriggerThreshold: &amp;thresholdreg
-    address: 33
-    type: U8
-    access: Write
-    description: Threshold value to detect the lick. Values below this threshold will be considered a detected lick.
-  Channel0UntriggerThreshold:
-    &lt;&lt;: *thresholdreg
-    address: 34
-    description: Threshold value to release the lick detection state. Values above this threshold will untrigger a detected lick.
-bitMasks:
-  LickChannels:
-    description: The channel of the lick detector.
-    bits:
-      Channel0: 0x1
-      Channel1: 0x2
-</DeviceMetadata>
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>Lickometer</DeviceName>
                         </Expression>
@@ -109,529 +82,16 @@ bitMasks:
                             <Property Name="Modality" />
                           </PropertyMappings>
                         </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="Extensions\HarpBehaviorGetMetadata.bonsai" />
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="beh:GetDeviceMetadata" />
+                        </Expression>
                         <Expression xsi:type="PropertyMapping">
                           <PropertyMappings>
                             <Property Name="DeviceMetadata" />
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: Behavior
-whoAmI: 1216
-firmwareVersion: "3.2"
-hardwareTargets: "1.1"
-registers:
-  DigitalInputState:
-    address: 32
-    access: Event
-    type: U8
-    maskType: DigitalInputs
-    description: Reflects the state of DI digital lines of each Port
-  Reserved0: &amp;reserved
-    address: 33
-    type: U8
-    access: Read
-    description: Reserved for future use
-    visibility: private
-  OutputSet: &amp;output
-    address: 34
-    type: U16
-    access: Write
-    maskType: DigitalOutputs
-    description: Set the specified digital output lines.
-  OutputClear:
-    &lt;&lt;: *output
-    address: 35
-    description: Clear the specified digital output lines
-  OutputToggle:
-    &lt;&lt;: *output
-    address: 36
-    description: Toggle the specified digital output lines
-  OutputState:
-    &lt;&lt;: *output
-    address: 37
-    description: Write the state of all digital output lines
-  PortDIOSet: &amp;portDIO
-    address: 38
-    type: U8
-    access: Write
-    maskType: PortDigitalIOS
-    description: Set the specified port DIO lines
-  PortDIOClear:
-    &lt;&lt;: *portDIO
-    address: 39
-    description: Clear the specified port DIO lines
-  PortDIOToggle:
-    &lt;&lt;: *portDIO
-    address: 40
-    description: Toggle the specified port DIO lines
-  PortDIOState:
-    &lt;&lt;: *portDIO
-    address: 41
-    description: Write the state of all port DIO lines
-  PortDIODirection:
-    &lt;&lt;: *portDIO
-    address: 42
-    description: Specifies which of the port DIO lines are outputs
-  PortDIOStateEvent:
-    &lt;&lt;: *portDIO
-    address: 43
-    access: Event
-    description: Specifies the state of the port DIO lines on a line change
-  AnalogData:
-    address: 44
-    type: S16
-    length: 3
-    access: Event
-    description: Voltage at the ADC input and encoder value on Port 2
-    payloadSpec:
-      AnalogInput0:
-        offset: 0
-        description: The voltage at the output of the ADC channel 0.
-      Encoder:
-        offset: 1
-        description: The quadrature counter value on Port 2
-      AnalogInput1:
-        offset: 2
-        description: The voltage at the output of the ADC channel 1.
-  OutputPulseEnable:
-    &lt;&lt;: *output
-    address: 45
-    description: Enables the pulse function for the specified output lines
-  PulseDOPort0: &amp;pulseDO
-    address: 46
-    type: U16
-    access: Write
-    minValue: 1
-    description: Specifies the duration of the output pulse in milliseconds.
-  PulseDOPort1:
-    &lt;&lt;: *pulseDO
-    address: 47
-  PulseDOPort2:
-    &lt;&lt;: *pulseDO
-    address: 48
-  PulseSupplyPort0:
-    &lt;&lt;: *pulseDO
-    address: 49
-  PulseSupplyPort1:
-    &lt;&lt;: *pulseDO
-    address: 50
-  PulseSupplyPort2:
-    &lt;&lt;: *pulseDO
-    address: 51
-  PulseLed0:
-    &lt;&lt;: *pulseDO
-    address: 52
-  PulseLed1:
-    &lt;&lt;: *pulseDO
-    address: 53
-  PulseRgb0:
-    &lt;&lt;: *pulseDO
-    address: 54
-  PulseRgb1:
-    &lt;&lt;: *pulseDO
-    address: 55
-  PulseDO0:
-    &lt;&lt;: *pulseDO
-    address: 56
-  PulseDO1:
-    &lt;&lt;: *pulseDO
-    address: 57
-  PulseDO2:
-    &lt;&lt;: *pulseDO
-    address: 58
-  PulseDO3:
-    &lt;&lt;: *pulseDO
-    address: 59
-  PwmFrequencyDO0: &amp;pwmFreq
-    address: 60
-    type: U16
-    access: Write
-    minValue: 1
-    description: Specifies the frequency of the PWM at DO0.
-  PwmFrequencyDO1:
-    &lt;&lt;: *pwmFreq
-    address: 61
-    description: Specifies the frequency of the PWM at DO1.
-  PwmFrequencyDO2:
-    &lt;&lt;: *pwmFreq
-    address: 62
-    description: Specifies the frequency of the PWM at DO2.
-  PwmFrequencyDO3:
-    &lt;&lt;: *pwmFreq
-    address: 63
-    description: Specifies the frequency of the PWM at DO3.
-  PwmDutyCycleDO0: &amp;pwmDutyCycle
-    address: 64
-    type: U8
-    access: Write
-    minValue: 1
-    maxValue: 99
-    description: Specifies the duty cycle of the PWM at DO0.
-  PwmDutyCycleDO1:
-    &lt;&lt;: *pwmDutyCycle
-    address: 65
-    description: Specifies the duty cycle of the PWM at DO1.
-  PwmDutyCycleDO2:
-    &lt;&lt;: *pwmDutyCycle
-    address: 66
-    description: Specifies the duty cycle of the PWM at DO2.
-  PwmDutyCycleDO3:
-    &lt;&lt;: *pwmDutyCycle
-    address: 67
-    description: Specifies the duty cycle of the PWM at DO3.
-  PwmStart: &amp;pwmStartStop
-    address: 68
-    type: U8
-    access: Write
-    maskType: PwmOutputs
-    description: Starts the PWM on the selected output lines.
-  PwmStop:
-    &lt;&lt;: *pwmStartStop
-    address: 69
-    description: Stops the PWM on the selected output lines.
-  RgbAll:
-    address: 70
-    type: &amp;rgbType U8
-    length: 6
-    access: &amp;rgbAccess Write
-    description: Specifies the state of all RGB LED channels.
-    payloadSpec:
-      Green0:
-        offset: 0
-        description: The intensity of the green channel in the RGB0 LED.
-      Red0:
-        offset: 1
-        description: The intensity of the red channel in the RGB0 LED.
-      Blue0:
-        offset: 2
-        description: The intensity of the blue channel in the RGB0 LED.
-      Green1:
-        offset: 3
-        description: The intensity of the green channel in the RGB1 LED.
-      Red1:
-        offset: 4
-        description: The intensity of the red channel in the RGB1 LED.
-      Blue1:
-        offset: 5
-        description: The intensity of the blue channel in the RGB1 LED.
-  Rgb0: &amp;rgbRegister
-    address: 71
-    type: *rgbType
-    length: 3
-    access: *rgbAccess
-    description: Specifies the state of the RGB0 LED channels.
-    interfaceType: RgbPayload
-    payloadSpec:
-      Green:
-        offset: 0
-        description: The intensity of the green channel in the RGB LED.
-      Red:
-        offset: 1
-        description: The intensity of the red channel in the RGB LED.
-      Blue:
-        offset: 2
-        description: The intensity of the blue channel in the RGB LED.
-  Rgb1:
-    &lt;&lt;: *rgbRegister
-    address: 72
-    description: Specifies the state of the RGB1 LED channels.
-  Led0Current: &amp;ledCurrent
-    address: 73
-    type: U8
-    access: Write
-    minValue: 2
-    maxValue: 100
-    description: Specifies the configuration of current to drive LED 0.
-  Led1Current:
-    &lt;&lt;: *ledCurrent
-    address: 74
-    description: Specifies the configuration of current to drive LED 1.
-  Led0MaxCurrent: &amp;ledMaxCurrent
-    address: 75
-    type: U8
-    access: Write
-    minValue: 5
-    maxValue: 100
-    description: Specifies the configuration of current to drive LED 0.
-  Led1MaxCurrent:
-    &lt;&lt;: *ledMaxCurrent
-    address: 76
-    description: Specifies the configuration of current to drive LED 1.
-  EventEnable:
-    address: 77
-    type: U8
-    access: Write
-    maskType: Events
-    description: Specifies the active events in the device.
-  StartCameras: &amp;cameraControl
-    address: 78
-    type: U8
-    access: Write
-    maskType: CameraOutputs
-    description: Specifies the camera outputs to enable in the device.
-  StopCameras:
-    &lt;&lt;: *cameraControl
-    access: [Write, Event]
-    address: 79
-    description: Specifies the camera outputs to disable in the device. An event will be issued when the trigger signal is actually stopped being generated.
-  EnableServos: &amp;servoControl
-    address: 80
-    type: U8
-    access: Write
-    maskType: ServoOutputs
-    description: Specifies the servo outputs to enable in the device.
-  DisableServos:
-    &lt;&lt;: *servoControl
-    address: 81
-    description: Specifies the servo outputs to disable in the device.
-  EnableEncoders:
-    address: 82
-    type: U8
-    access: Write
-    maskType: EncoderInputs
-    description: Specifies the port quadrature counters to enable in the device.
-  EncoderMode:
-    address: 83
-    type: U8
-    access: Write
-    maskType: EncoderModeConfig
-    description: Configures the operation mode of the quadrature encoders.
-  Reserved2:
-    &lt;&lt;: *reserved
-    address: 84
-  Reserved3:
-    &lt;&lt;: *reserved
-    address: 85
-  Reserved4:
-    &lt;&lt;: *reserved
-    address: 86
-  Reserved5:
-    &lt;&lt;: *reserved
-    address: 87
-  Reserved6:
-    &lt;&lt;: *reserved
-    address: 88
-  Reserved7:
-    &lt;&lt;: *reserved
-    address: 89
-  Reserved8:
-    &lt;&lt;: *reserved
-    address: 90
-  Reserved9:
-    &lt;&lt;: *reserved
-    address: 91
-  Camera0Frame: &amp;frameAcquired
-    address: 92
-    type: U8
-    access: Event
-    maskType: FrameAcquired
-    description: Specifies that a frame was acquired on camera 0.
-  Camera0Frequency: &amp;cameraFreq
-    address: 93
-    type: U16
-    access: Write
-    minValue: 1
-    maxValue: 600
-    description: Specifies the trigger frequency for camera 0.
-  Camera1Frame:
-    &lt;&lt;: *frameAcquired
-    address: 94
-    description: Specifies that a frame was acquired on camera 1.
-  Camera1Frequency:
-    &lt;&lt;: *cameraFreq
-    address: 95
-    description: Specifies the trigger frequency for camera 1.
-  Reserved10:
-    &lt;&lt;: *reserved
-    address: 96
-  Reserved11:
-    &lt;&lt;: *reserved
-    address: 97
-  Reserved12:
-    &lt;&lt;: *reserved
-    address: 98
-  Reserved13:
-    &lt;&lt;: *reserved
-    address: 99
-  ServoMotor2Period: &amp;servoPeriod
-    address: 100
-    type: U16
-    access: Write
-    minValue: 2
-    maxValue: 65534
-    description: Specifies the period of the servo motor in DO2, in microseconds.
-  ServoMotor2Pulse: &amp;servoPulse
-    address: 101
-    type: U16
-    access: Write
-    minValue: 6
-    maxValue: 65530
-    description: Specifies the pulse of the servo motor in DO2, in microseconds.
-  ServoMotor3Period:
-    &lt;&lt;: *servoPeriod
-    address: 102
-    description: Specifies the period of the servo motor in DO3, in microseconds.
-  ServoMotor3Pulse:
-    &lt;&lt;: *servoPulse
-    address: 103
-    description: Specifies the pulse of the servo motor in DO3, in microseconds.
-  Reserved14:
-    &lt;&lt;: *reserved
-    address: 104
-  Reserved15:
-    &lt;&lt;: *reserved
-    address: 105
-  Reserved16:
-    &lt;&lt;: *reserved
-    address: 106
-  Reserved17:
-    &lt;&lt;: *reserved
-    address: 107
-  EncoderReset:
-    address: 108
-    type: U8
-    access: Write
-    maskType: EncoderInputs
-    description: Reset the counter of the specified encoders to zero.
-  Reserved18:
-    &lt;&lt;: *reserved
-    address: 109
-  EnableSerialTimestamp:
-    address: 110
-    type: U8
-    access: Write
-    description: Enables the timestamp for serial TX.
-  MimicPort0IR: &amp;mimic
-    address: 111
-    type: U8
-    access: Write
-    maskType: MimicOutput
-    description: Specifies the digital output to mimic the Port 0 IR state.
-  MimicPort1IR:
-    &lt;&lt;: *mimic
-    address: 112
-    description: Specifies the digital output to mimic the Port 1 IR state.
-  MimicPort2IR:
-    &lt;&lt;: *mimic
-    address: 113
-    description: Specifies the digital output to mimic the Port 2 IR state.
-  Reserved20:
-    &lt;&lt;: *reserved
-    address: 114
-  Reserved21:
-    &lt;&lt;: *reserved
-    address: 115
-  Reserved22:
-    &lt;&lt;: *reserved
-    address: 116
-  MimicPort0Valve:
-    &lt;&lt;: *mimic
-    address: 117
-    description: Specifies the digital output to mimic the Port 0 valve state.
-  MimicPort1Valve:
-    &lt;&lt;: *mimic
-    address: 118
-    description: Specifies the digital output to mimic the Port 1 valve state.
-  MimicPort2Valve:
-    &lt;&lt;: *mimic
-    address: 119
-    description: Specifies the digital output to mimic the Port 2 valve state.
-  Reserved23:
-    &lt;&lt;: *reserved
-    address: 120
-  Reserved24:
-    &lt;&lt;: *reserved
-    address: 121
-  PokeInputFilter:
-    address: 122
-    type: U8
-    access: Write
-    description: Specifies the low pass filter time value for poke inputs, in ms.
-bitMasks:
-  DigitalInputs:
-    description: Specifies the state of port digital input lines.
-    bits:
-      DIPort0: 0x1
-      DIPort1: 0x2
-      DIPort2: 0x4
-      DI3: 0x8
-  DigitalOutputs:
-    description: Specifies the state of port digital output lines.
-    bits:
-      DOPort0: 0x1
-      DOPort1: 0x2
-      DOPort2: 0x4
-      SupplyPort0: 0x8
-      SupplyPort1: 0x10
-      SupplyPort2: 0x20
-      Led0: 0x40
-      Led1: 0x80
-      Rgb0: 0x100
-      Rgb1: 0x200
-      DO0: 0x400
-      DO1: 0x800
-      DO2: 0x1000
-      DO3: 0x2000
-  PortDigitalIOS:
-    description: Specifies the state of the port DIO lines.
-    bits:
-      DIO0: 0x1
-      DIO1: 0x2
-      DIO2: 0x4
-  PwmOutputs:
-    description: Specifies the state of PWM output lines.
-    bits:
-      PwmDO0: 0x1
-      PwmDO1: 0x2
-      PwmDO2: 0x4
-      PwmDO3: 0x8
-  Events:
-    description: Specifies the active events in the device.
-    bits:
-      PortDI: 0x1
-      PortDIO: 0x2
-      AnalogData: 0x4
-      Camera0: 0x8
-      Camera1: 0x10
-  CameraOutputs:
-    description: Specifies camera output enable bits.
-    bits:
-      CameraOutput0: 0x1
-      CameraOutput1: 0x2
-  ServoOutputs:
-    description: Specifies servo output enable bits.
-    bits:
-      ServoOutput2: 0x4
-      ServoOutput3: 0x8
-  EncoderInputs:
-    description: Specifies quadrature counter enable bits.
-    bits:
-      EncoderPort2: 0x4
-  FrameAcquired:
-    description: Specifies that camera frame was acquired.
-    bits:
-      FrameAcquired: 0x1
-groupMasks:
-  MimicOutput:
-    description: Specifies the target IO on which to mimic the specified register.
-    values:
-      None: 0
-      DIO0: 1
-      DIO1: 2
-      DIO2: 3
-      DO0: 4
-      DO1: 5
-      DO2: 6
-      DO3: 7
-  EncoderModeConfig:
-    description: Specifies the type of reading made from the quadrature encoder.
-    values:
-      Position: 0
-      Displacement: 1</DeviceMetadata>
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>Behavior</DeviceName>
                         </Expression>
@@ -646,1149 +106,21 @@ groupMasks:
                             <Property Name="Modality" />
                           </PropertyMappings>
                         </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="Extensions\HarpStepperDriverGetMetadata.bonsai" />
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p3:GetDeviceMetadata" />
+                        </Expression>
                         <Expression xsi:type="PropertyMapping">
                           <PropertyMappings>
                             <Property Name="DeviceMetadata" />
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: StepperDriver
-whoAmI: 1130
-firmwareVersion: "0.7"
-hardwareTargets: "1.0"
-registers:
-  ##################################
-  # Enable and disable
-  ##################################
-  EnableDriver:
-    address: 32
-    type: U8
-    access: Write
-    maskType: StepperMotors
-    description: Enables the driver for a specific motor. If the driver is already enabled, the driver remains enabled.
-  DisableDriver:
-    address: 33
-    type: U8
-    access: Write
-    maskType: StepperMotors
-    description: Disables the driver for a specific stepper motor, which prevents current from being sent to the motor or load. If the driver is already disabled, the driver remains disabled.
-  EnableEncoders:
-    address: 34
-    type: U8
-    access: Write
-    maskType: QuadratureEncoders
-    description: Specifies a set of port quadrature counters to enable in the device.
-  DisableEncoders:
-    address: 35
-    type: U8
-    access: Write
-    maskType: QuadratureEncoders
-    description: Specifies a set of port quadrature counters to disable in the device.
-  EnableDigitalInputs:
-    address: 36
-    type: U8
-    access: Write
-    maskType: DigitalInputs
-    description: Specifies a set of digital inputs to enable in the device.
-  DisableDigitalInputs:
-    address: 37
-    type: U8
-    access: Write
-    maskType: DigitalInputs
-    description: Specifies a set of digital inputs to disable in the device.
-
-  ##################################
-  # Configuration
-  ##################################
-  Motor0OperationMode: &amp;opmode
-    address: 38
-    type: U8
-    access: Write
-    maskType: MotorOperationMode
-    description: Configures the operation mode for motor 0.
-  Motor1OperationMode:
-    &lt;&lt;: *opmode
-    address: 39
-    description: Configures the operation mode for motor 1.
-  Motor2OperationMode:
-    &lt;&lt;: *opmode
-    address: 40
-    description: Configures the operation mode for motor 2.
-  Motor3OperationMode:
-    &lt;&lt;: *opmode
-    address: 41
-    description: Configures the operation mode for motor 3.
-  Motor0MicrostepResolution: &amp;microstep_resolution
-    address: 42
-    type: U8
-    access: Write
-    maskType: MicrostepResolution
-    description: Configures the microstep resolution for motor 0.
-  Motor1MicrostepResolution:
-    &lt;&lt;: *microstep_resolution
-    address: 43
-    description: Configures the microstep resolution for motor 1.
-  Motor2MicrostepResolution:
-    &lt;&lt;: *microstep_resolution
-    address: 44
-    description: Configures the microstep resolution for motor 2.
-  Motor3MicrostepResolution:
-    &lt;&lt;: *microstep_resolution
-    address: 45
-    description: Configures the microstep resolution for motor 3.
-
-  Motor0MaximumRunCurrent: &amp;maxcurrent
-    address: 46
-    minValue: 0.139
-    maxValue: 2.1
-    defaultValue: 0.2
-    type: Float
-    access: Write
-    description: Configures the maximum run RMS current per phase for motor 0.
-  Motor1MaximumRunCurrent:
-    &lt;&lt;: *maxcurrent
-    address: 47
-    description: Configures the maximum run RMS current per phase for motor 1.
-  Motor2MaximumRunCurrent:
-    &lt;&lt;: *maxcurrent
-    address: 48
-    description: Configures the maximum run RMS current per phase for motor 2.
-  Motor3MaximumRunCurrent:
-    &lt;&lt;: *maxcurrent
-    address: 49
-    description: Configures the maximum run RMS current per phase for motor 3.
-
-  Motor0HoldCurrentReduction: &amp;currentreduction
-    address: 50
-    type: U8
-    access: Write
-    maskType: HoldCurrentReduction
-    description: Configures the hold current reduction for motor 0.
-  Motor1HoldCurrentReduction:
-    &lt;&lt;: *currentreduction
-    address: 51
-    description: Configures the hold current reduction for motor 1.
-  Motor2HoldCurrentReduction:
-    &lt;&lt;: *currentreduction
-    address: 52
-    description: Configures the hold current reduction for motor 2.
-  Motor3HoldCurrentReduction:
-    &lt;&lt;: *currentreduction
-    address: 53
-    description: Configures the hold current reduction for motor 3.
-
-  Motor0StepInterval: &amp;nominalinterval
-    address: 54
-    minValue: 100
-    maxValue: 20000
-    defaultValue: 250
-    type: U16
-    access: Write
-    description: Configures the time between step motor pulses (us) when running at nominal speed for motor 0.
-  Motor1StepInterval:
-    &lt;&lt;: *nominalinterval
-    address: 55
-    description: Configures the time between step motor pulses (us) when running at nominal speed for motor 1.
-  Motor2StepInterval:
-    &lt;&lt;: *nominalinterval
-    address: 56
-    description: Configures the time between step motor pulses (us) when running at nominal speed for motor 2.
-  Motor3StepInterval:
-    &lt;&lt;: *nominalinterval
-    address: 57
-    description: Configures the time between step motor pulses (us) when running at nominal speed for motor 3.
-
-  Motor0MaximumStepInterval: &amp;maxinterval
-    address: 58
-    minValue: 100
-    maxValue: 20000
-    defaultValue: 2000
-    type: U16
-    access: Write
-    description: Configures the time between step motor pulses (us) used when starting or stopping a movement for motor 0.
-  Motor1MaximumStepInterval:
-    &lt;&lt;: *maxinterval
-    address: 59
-    description: Configures the time between step motor pulses (us) used when starting or stopping a movement for motor 1.
-  Motor2MaximumStepInterval:
-    &lt;&lt;: *maxinterval
-    address: 60
-    description: Configures the time between step motor pulses (us) used when starting or stopping a movement for motor 2.
-  Motor3MaximumStepInterval:
-    &lt;&lt;: *maxinterval
-    address: 61
-    description: Configures the time between step motor pulses (us) used when starting or stopping a movement for motor 3.
-
-  Motor0StepAccelerationInterval: &amp;accperiod
-    address: 62
-    minValue: 2
-    maxValue: 2000
-    defaultValue: 10
-    type: U16
-    access: Write
-    description: Configures the acceleration for motor 0. The time between step pulses is decreased by this value when accelerating and increased when decelerating.
-  Motor1StepAccelerationInterval:
-    &lt;&lt;: *accperiod
-    address: 63
-    description: Configures the acceleration for motor 1. The time between step pulses is decreased by this value when accelerating and increased when decelerating.
-  Motor2StepAccelerationInterval:
-    &lt;&lt;: *accperiod
-    address: 64
-    description: Configures the acceleration for motor 2. The time between step pulses is decreased by this value when accelerating and increased when decelerating.
-  Motor3StepAccelerationInterval:
-    &lt;&lt;: *accperiod
-    address: 65
-    description: Configures the acceleration for motor 3. The time between step pulses is decreased by this value when accelerating and increased when decelerating.
-
-  EncoderMode:
-    address: 66
-    type: U8
-    access: Write
-    maskType: EncoderModeConfig
-    description: Configures the operation mode of the quadrature encoder.
-  EncoderSamplingRate:
-    address: 67
-    type: U8
-    access: Write
-    maskType: EncoderSamplingRateConfig
-    description: Configures the sampling rate of the quadrature encoder event.
-
-  Input0OpMode: &amp;input_mode
-    address: 68
-    type: U8
-    access: Write
-    maskType: InputOpModeConfig
-    description: Configures the operation mode for digital input 0.
-  Input1OpMode:
-    &lt;&lt;: *input_mode
-    address: 69
-    description: Configures the operation mode for digital input 1.
-  Input2OpMode:
-    &lt;&lt;: *input_mode
-    address: 70
-    description: Configures the operation mode for digital input 2.
-  Input3OpMode:
-    &lt;&lt;: *input_mode
-    address: 71
-    description: Configures the operation mode for digital input 3.
-
-  InterlockEnabled:
-    address: 72
-    type: U8
-    access: Write
-    maskType: InterlockEnabledConfig
-    description: Configures the external interlock connector state required for the device to be enabled.
-
-  AccumulatedStepsSamplingRate:
-    address: 73
-    type: U8
-    access: Write
-    maskType: AccumulatedStepsSamplingRateConfig
-    description: Configures the dispatch rate of the accumulated steps event.
-
-  ##################################
-  # Events
-  ##################################
-  MotorStopped:
-    address: 74
-    type: U8
-    access: Event
-    description: Emitted when any of the motors stops.
-    payloadSpec:
-      State:
-        description: Specifies which motors are currently stopped.
-        maskType: StepperMotors
-        mask: 0x0F
-      Changed:
-        description: Specifies which motor just stopped.
-        maskType: StepperMotors
-        mask: 0xF0
-  MotorOverVoltageDetection:
-    address: 75
-    type: U8
-    access: Event
-    maskType: StepperMotors
-    description: Contains a bit mask specifying the motor where the over voltage detection and protection mechanism occurred, which can happen when the there's a quick deceleration from a high velocity or when the motor stalls (not implemented).
-  MotorRaisedError:
-    address: 76
-    type: U8
-    access: Event
-    maskType: StepperMotors
-    description: Contains a bit mask specifying the motor that triggered the error which can be happen in case of short-circuit or driver temperature above 165 degrees celsius.
-
-  Encoders:
-    address: 77
-    type: S16
-    length: 3
-    access: [Event, Write]
-    description: Contains the quadrature encoder readings.
-    payloadSpec:
-      Encoder0:
-        offset: 0
-        description: The quadrature counter on port ENC 0.
-      Encoder1:
-        offset: 1
-        description: The quadrature counter on port ENC 1.
-      Encoder2:
-        offset: 2
-        description: The quadrature counter on port ENC 2.
-
-  DigitalInputState:
-    address: 78
-    access: Event
-    type: U8
-    maskType: DigitalInputStates
-    description: Reflects the state of the digital input lines.
-
-  DeviceState:
-    address: 79
-    type: U8
-    access: Event
-    maskType: DeviceStateMode
-    description: Contains the state of the device.
-
-  ##################################
-  # Movement control
-  ##################################
-
-  MoveRelative:
-    address: 80
-    type: S32
-    length: 4
-    access: Write
-    description: Moves all motors by the number of steps written in this array register and set the direction according to the value's signal. If a motor is disable, the user should set the value to 0.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Contains the number of steps used to move motor 0.
-      Motor1:
-        offset: 1
-        description: Contains the number of steps used to move motor 1.
-      Motor2:
-        offset: 2
-        description: Contains the number of steps used to move motor 2.
-      Motor3:
-        offset: 3
-        description: Contains the number of steps used to move motor 3.
-
-  Motor0MoveRelative: &amp;motorsteps
-    address: 81
-    type: S32
-    access: Write
-    description: Moves motor 0 by the number of steps written in this register and set the direction according to the value's signal.
-  Motor1MoveRelative:
-    &lt;&lt;: *motorsteps
-    address: 82
-    description: Moves motor 1 by the number of steps written in this register and set the direction according to the value's signal.
-  Motor2MoveRelative:
-    &lt;&lt;: *motorsteps
-    address: 83
-    description: Moves motor 2 by the number of steps written in this register and set the direction according to the value's signal.
-  Motor3MoveRelative:
-    &lt;&lt;: *motorsteps
-    address: 84
-    description: Moves motor 3 by the number of steps written in this register and set the direction according to the value's signal.
-
-  MoveAbsolute:
-    address: 85
-    type: S32
-    length: 4
-    access: Write
-    description: Moves all motors to the absolute position written in this array register. If a motor is disable, the user should set the value to 0.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Contains the absolute position to move motor 0.
-      Motor1:
-        offset: 1
-        description: Contains the absolute position to move motor 1.
-      Motor2:
-        offset: 2
-        description: Contains the absolute position to move motor 2.
-      Motor3:
-        offset: 3
-        description: Contains the absolute position to move motor 3.
-
-  Motor0MoveAbsolute: &amp;motorabsolutesteps
-    address: 86
-    type: S32
-    access: Write
-    description: Moves motor 0 to the absolute position written in this register.
-  Motor1MoveAbsolute:
-    &lt;&lt;: *motorabsolutesteps
-    address: 87
-    description: Moves motor 1 to the absolute position written in this register.
-  Motor2MoveAbsolute:
-    &lt;&lt;: *motorabsolutesteps
-    address: 88
-    description: Moves motor 2 to the absolute position written in this register.
-  Motor3MoveAbsolute:
-    &lt;&lt;: *motorabsolutesteps
-    address: 89
-    description: Moves motor 3 to the absolute position written in this register.
-
-  AccumulatedSteps:
-    address: 90
-    type: S32
-    length: 4
-    access: [Event, Write]
-    description: Contains the accumulated steps of all motors. Write a value to set the accumulated steps. An event will be emitted with a dispatch rate defined in AccumulatedStepsSamplingRate.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Contains the accumulated steps of motor 0.
-      Motor1:
-        offset: 1
-        description: Contains the accumulated steps of motor 1.
-      Motor2:
-        offset: 2
-        description: Contains the accumulated steps of motor 2.
-      Motor3:
-        offset: 3
-        description: Contains the accumulated steps of motor 3.
-
-  Mortor0AccumulatedSteps: &amp;motorsaccumulatedsteps
-    address: 91
-    type: S32
-    access: Write
-    description: Contains the accumulated number of steps of motor 0. Write a value to set the current number of accumulated steps.
-  Mortor1AccumulatedSteps:
-    &lt;&lt;: *motorsaccumulatedsteps
-    address: 92
-    description: Contains the accumulated number of steps of motor 1. Write a value to set the current number of accumulated steps.
-  Mortor2AccumulatedSteps:
-    &lt;&lt;: *motorsaccumulatedsteps
-    address: 93
-    description: Contains the accumulated number of steps of motor 2. Write a value to set the current number of accumulated steps.
-  Mortor3AccumulatedSteps:
-    &lt;&lt;: *motorsaccumulatedsteps
-    address: 94
-    description: Contains the accumulated number of steps of motor 3. Write a value to set the current number of accumulated steps.
-
-  MaxPosition:
-    address: 95
-    type: S32
-    length: 4
-    access: Write
-    description: Defines the limit of the accumulated steps for the positive movement of all motors. The device will not let the motors move further than this value. A value equal to 0 will disable the limits.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Defines the limit of the accumulated steps for the positive movement of motor 0. The device will not let the motor move further than this value.
-      Motor1:
-        offset: 1
-        description: Defines the limit of the accumulated steps for the positive movement of motor 1. The device will not let the motor move further than this value.
-      Motor2:
-        offset: 2
-        description: Defines the limit of the accumulated steps for the positive movement of motor 2. The device will not let the motor move further than this value.
-      Motor3:
-        offset: 3
-        description: Defines the limit of the accumulated steps for the positive movement of motor 3. The device will not let the motor move further than this value.
-
-  Motor0MaxPosition: &amp;motorsmaxsteps
-    address: 96
-    type: S32
-    access: Write
-    description: Specifies the limit of the accumulated steps for the positive movement of motor 0. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor1MaxPosition:
-    &lt;&lt;: *motorsmaxsteps
-    address: 97
-    description: Specifies the limit of the accumulated steps for the positive movement of motor 1. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor2MaxPosition:
-    &lt;&lt;: *motorsmaxsteps
-    address: 98
-    description: Specifies the limit of the accumulated steps for the positive movement of motor 2. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor3MaxPosition:
-    &lt;&lt;: *motorsmaxsteps
-    address: 99
-    description: Specifies the limit of the accumulated steps for the positive movement of motor 3. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-
-  MinPosition:
-    address: 100
-    type: S32
-    length: 4
-    access: Write
-    description: Defines the limit of the accumulated steps for the negative movement of all motors. The device will not let the motors move further than this value. A value equal to 0 will disable the limits.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Defines the limit of the accumulated steps for the negative movement of motor 0. The device will not let the motor move further than this value.
-      Motor1:
-        offset: 1
-        description: Defines the limit of the accumulated steps for the negative movement of motor 1. The device will not let the motor move further than this value.
-      Motor2:
-        offset: 2
-        description: Defines the limit of the accumulated steps for the negative movement of motor 2. The device will not let the motor move further than this value.
-      Motor3:
-        offset: 3
-        description: Defines the limit of the accumulated steps for the negative movement of motor 3. The device will not let the motor move further than this value.
-
-  Motor0MinPosition: &amp;motorsminsteps
-    address: 101
-    type: S32
-    access: Write
-    description: Specifies the limit of the accumulated steps for the negative movement of motor 0. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor1MinPosition:
-    &lt;&lt;: *motorsminsteps
-    address: 102
-    description: Specifies the limit of the accumulated steps for the negative movement of motor 1. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor2MinPosition:
-    &lt;&lt;: *motorsminsteps
-    address: 103
-    description: Specifies the limit of the accumulated steps for the negative movement of motor 2. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor3MinPosition:
-    &lt;&lt;: *motorsminsteps
-    address: 104
-    description: Specifies the limit of the accumulated steps for the negative movement of motor 3. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-
-  StepRelative:
-    address: 105
-    type: S32
-    length: 4
-    access: Write
-    description: Starts the movement of all motors with the step interval defined by this array. The value's signal defines the direction.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Starts the movement of motor 0 with the step interval defined by this register. The value's signal defines the direction.
-      Motor1:
-        offset: 1
-        description: Starts the movement of motor 1 with the step interval defined by this register. The value's signal defines the direction.
-      Motor2:
-        offset: 2
-        description: Starts the movement of motor 2 with the step interval defined by this register. The value's signal defines the direction.
-      Motor3:
-        offset: 3
-        description: Starts the movement of motor 3 with the step interval defined by this register. The value's signal defines the direction.
-
-  Motor0StepRelative: &amp;immediatesteps
-    address: 106
-    type: S32
-    access: Write
-    description: Starts the movement of motor 0 with the step interval defined by this register, disregarding the acceleration protocol. The sign of the value specifies the direction.
-  Motor1StepRelative:
-    &lt;&lt;: *immediatesteps
-    address: 107
-    description: Starts the movement of motor 1 with the step interval defined by this register, disregarding the acceleration protocol. The sign of the value specifies the direction.
-  Motor2StepRelative:
-    &lt;&lt;: *immediatesteps
-    address: 108
-    description: Starts the movement of motor 2 with the step interval defined by this register, disregarding the acceleration protocol. The sign of the value specifies the direction.
-  Motor3StepRelative:
-    &lt;&lt;: *immediatesteps
-    address: 109
-    description: Starts the movement of motor 3 with the step interval defined by this register, disregarding the acceleration protocol. The sign of the value specifies the direction.
-
-  ##################################
-  # Actions
-  ##################################
-  StopMotors:
-    address: 110
-    type: U8
-    access: Write
-    maskType: StepperMotors
-    description: Stops the motors selected in the bit-mask immediately.
-  ResetMotors:
-    address: 111
-    type: U8
-    access: Write
-    visibility: private
-    maskType: StepperMotors
-    description: Resets the internal motor driver which also clears any eventual error (not implemented).
-  ResetEncoders:
-    address: 112
-    type: U8
-    access: Write
-    maskType: QuadratureEncoders
-    description: Resets the encoder.
-
-  ##################################
-  # Reserved
-  ##################################
-  Reserved0: &amp;reserved
-    address: 113
-    type: U8
-    access: Write
-    visibility: private
-    description: Contains the CFG configuration pins of the TMC2210 driver that controls motor 0.
-  Reserved1:
-    &lt;&lt;: *reserved
-    address: 114
-    description: Contains the CFG configuration pins of the TMC2210 driver that controls motor 1.
-  Reserved2:
-    &lt;&lt;: *reserved
-    address: 115
-    description: Contains the CFG configuration pins of the TMC2210 driver that controls motor 2.
-  Reserved3:
-    &lt;&lt;: *reserved
-    address: 116
-    description: Contains the CFG configuration pins of the TMC2210 driver that controls motor 3.
-  Reserved4:
-    &lt;&lt;: *reserved
-    address: 117
-    visibility: private
-    description: Contains the raw data of the digital potentiometer that controls current limit of motor 0.
-  Reserved5:
-    &lt;&lt;: *reserved
-    address: 118
-    visibility: private
-    description: Contains the raw data of the digital potentiometer that controls current limit of motor 1.
-  Reserved6:
-    &lt;&lt;: *reserved
-    address: 119
-    visibility: private
-    description: Contains the raw data of the digital potentiometer that controls current limit of motor 2.
-  Reserved7:
-    &lt;&lt;: *reserved
-    address: 120
-    visibility: private
-    description: Contains the raw data of the digital potentiometer that controls current limit of motor 3.
-
-  ##################################
-  # Reserved block
-  ##################################
-  Reserved8: &amp;reserved_unused
-    address: 121
-    visibility: private
-    type: U8
-    access: Read
-    description: Reserved register.
-  Reserved9:
-    &lt;&lt;: *reserved_unused
-    address: 122
-  Reserved10:
-    &lt;&lt;: *reserved_unused
-    address: 123
-  Reserved11:
-    &lt;&lt;: *reserved_unused
-    address: 124
-  Reserved12:
-    &lt;&lt;: *reserved_unused
-    address: 125
-  Reserved13:
-    &lt;&lt;: *reserved_unused
-    address: 126
-  Reserved14:
-    &lt;&lt;: *reserved_unused
-    address: 127
-  Reserved15:
-    &lt;&lt;: *reserved_unused
-    address: 128
-  Reserved16:
-    &lt;&lt;: *reserved_unused
-    address: 129
-
-  ##################################
-  # Quick movement
-  ##################################
-  TriggerQuickMovement:
-    address: 130
-    type: U8
-    access: Write
-    maskType: StepperMotors
-    description: Triggers the quick movement in the correspondent motor with the currently configured settings.
-  Motor1QuickMovementPulseDistance: &amp;quickmovement_pulsedistance
-    address: 131
-    type: Float
-    access: Write
-    description: Sets the single pulse distance for a quick movement, in millimeters, for the Motor 1.
-  Motor2QuickMovementPulseDistance:
-    &lt;&lt;: *quickmovement_pulsedistance
-    address: 132
-    description: Sets the single pulse distance for a quick movement, in millimeters, for the Motor 2.
-  Motor1QuickMovementNominalSpeed: &amp;quickmovement_nominalspeed
-    address: 133
-    type: Float
-    access: Write
-    description: Sets the target speed for a quick movement, in millimeters per second, for the Motor 1.
-  Motor2QuickMovementNominalSpeed:
-    &lt;&lt;: *quickmovement_nominalspeed
-    address: 134
-    description: Sets the target speed for a quick movement, in millimeters per second, for the Motor 2.
-  Motor1QuickMovementInitialSpeed: &amp;quickmovement_initialspeed
-    address: 135
-    type: Float
-    access: Write
-    description: Sets the initial speed for a quick movement, in millimeters per second, for the Motor 1.
-  Motor2QuickMovementInitialSpeed:
-    &lt;&lt;: *quickmovement_initialspeed
-    address: 136
-    description: Sets the initial speed for a quick movement, in millimeters per second, for the Motor 2.
-  Motor1QuickMovementAcceleration: &amp;quickmovement_acceleration
-    address: 137
-    type: Float
-    access: Write
-    description: Sets the acceleration for a quick movement, in millimeters per second^2, for the Motor 1.
-  Motor2QuickMovementAcceleration:
-    &lt;&lt;: *quickmovement_acceleration
-    address: 138
-    description: Sets the acceleration for a quick movement, in millimeters per second^2, for the Motor 2.
-  Motor1QuickMovementDistance: &amp;quickmovement_distance
-    address: 139
-    type: Float
-    access: Write
-    description: Sets the travel distance of a quick movement, in millimeters, for the Motor 1.
-  Motor2QuickMovementDistance:
-    &lt;&lt;: *quickmovement_distance
-    address: 140
-    description: Sets the travel distance of a quick movement, in millimeters, for the Motor 1.
-
-##################################
-# Bit masks
-##################################
-bitMasks:
-  StepperMotors:
-    description: Specifies the index of each motor.
-    bits:
-      Motor0: 0x01
-      Motor1: 0x02
-      Motor2: 0x04
-      Motor3: 0x08
-  QuadratureEncoders:
-    description: Specifies the index of each motor.
-    bits:
-      Encoder0: 0x01
-      Encoder1: 0x02
-      Encoder2: 0x04
-  DigitalInputs:
-    description: Specifies the available digital input lines.
-    bits:
-      Input0: 0x1
-      Input1: 0x2
-      Input2: 0x4
-      Input3: 0x8
-  DigitalInputStates:
-    description: Specifies the state of the port and digital input line that changed.
-    bits:
-      Input0: 0x1
-      Input1: 0x2
-      Input2: 0x4
-      Input3: 0x8
-      Input0Changed: 0x10
-      Input1Changed: 0x20
-      Input2Changed: 0x40
-      Input3Changed: 0x80
-##################################
-# Group masks
-##################################
-groupMasks:
-  EncoderModeConfig:
-    description: Specifies the type of reading made from the quadrature QuadratureEncoders.
-    values:
-      Position: 0
-      Displacement: 1
-  EncoderSamplingRateConfig:
-    description: Specifies the rate of the events from the quadrature QuadratureEncoders.
-    values:
-      Rate100Hz: 0
-      Rate200Hz: 1
-      Rate250Hz: 2
-      Rate500Hz: 3
-  MotorOperationMode:
-    description: Specifies the motor operation mode.
-    values:
-      QuietMode: 0
-      DynamicMovements: 1
-  MicrostepResolution:
-    description: Specifies the microstep resolution for each step pulse.
-    values:
-      Microstep8: 0
-      Microstep16: 1
-      Microstep32: 2
-      Microstep64: 3
-  HoldCurrentReduction:
-    description: Specifies the hold current reduction.
-    values:
-      ReductionTo50Percent: 0
-      ReductionTo25Percent: 1
-      ReductionTo12Percent: 2
-      NoReduction: 3
-  InputOpModeConfig:
-    description: Specifies the inputs operation mode.
-    values:
-      EventOnly: 0x0
-      StopMotor0OnRising: 0x10
-      StopMotor1OnRising: 0x11
-      StopMotor2OnRising: 0x12
-      StopMotor3OnRising: 0x13
-      StopMotor0OnFalling: 0x20
-      StopMotor1OnFalling: 0x21
-      StopMotor2OnFalling: 0x22
-      StopMotor3OnFalling: 0x23
-  TriggerConfig:
-    description: Specifies the input trigger configuration.
-    values:
-      FallingEdge: 0
-      RisingEdge: 1
-  InterlockEnabledConfig:
-    description: Specifies the external connector state that enables the device.
-    values:
-      Closed: 0
-      Open: 1
-  AccumulatedStepsSamplingRateConfig:
-    description: Specifies the rate of the accumulated steps events.
-    values:
-      Disabled: 0
-      Rate10Hz: 1
-      Rate50Hz: 2
-      Rate100Hz: 3
-  DeviceStateMode:
-    description: Specifies the current state of the device.
-    values:
-      Disabled: 0
-      Enabled: 1</DeviceMetadata>
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>StepperDriver</DeviceName>
                         </Expression>
                         <Expression xsi:type="SubscribeSubject">
                           <Name>HarpAnalogInputEvents</Name>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>Modality</Name>
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="Modality" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p3:GetMetadata" />
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="DeviceMetadata" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: AnalogInput
-whoAmI: 1236
-firmwareVersion: "1.2"
-hardwareTargets: "1.0"
-registers:
-  AcquisitionState:
-    address: 32
-    access: Write
-    type: U8
-    maskType: EnableFlag
-    description: Enables the data acquisition.
-  AnalogData:
-    address: 33
-    type: S16
-    length: 4
-    access: Event
-    description: Value from a single read of all ADC channels.
-    payloadSpec:
-      Channel0:
-        offset: 0
-      Channel1:
-        offset: 1
-      Channel2:
-        offset: 2
-      Channel3:
-        offset: 3
-  DigitalInputState:
-    address: 34
-    access: Event
-    type: U8
-    maskType: DigitalInputs
-    description: State of the digital input pin 0.
-  Reserved0: &amp;ReservedReg
-    address: 35
-    access: Read
-    visibility: private
-    type: U8
-    description: Reserved
-  Reserved1:
-    &lt;&lt;: *ReservedReg
-    address: 36
-  RangeAndFilter:
-    address: 37
-    access: Write
-    type: U8
-    maskType: RangeAndFilterConfig
-    description: Sets the range and LowPass filter cutoff of the ADC.
-  SamplingRate:
-    address: 38
-    access: Write
-    type: U8
-    maskType: SamplingRateMode
-    description: Sets the sampling frequency of the ADC.
-  DI0Trigger:
-    address: 39
-    access: Write
-    type: U8
-    maskType: TriggerConfig
-    description: Configuration of the digital input pin 0.
-  DO0Sync:
-    address: 40
-    access: Write
-    type: U8
-    maskType: SyncConfig
-    description: Configuration of the digital output pin 0.
-  DO0PulseWidth:
-    address: 41
-    access: Write
-    type: U8
-    minValue: 1
-    maxValue: 250
-    description: Pulse duration (ms) for the digital output pin 0. The pulse will only be emitted when DO0Sync == Pulse.
-  DigitalOutputSet: &amp;output
-    address: 42
-    type: U8
-    access: Write
-    maskType: DigitalOutputs
-    description: Set the specified digital output lines.
-  DigitalOutputClear:
-    &lt;&lt;: *output
-    address: 43
-    description: Clear the specified digital output lines.
-  DigitalOutputToggle:
-    &lt;&lt;: *output
-    address: 44
-    description: Toggle the specified digital output lines
-  DigitalOutputState:
-    &lt;&lt;: *output
-    address: 45
-    access: [Write, Event]
-    description: Write the state of all digital output lines. An event will be emitted when the value of any pin was changed by a threshold event.
-  Reserved2:
-    &lt;&lt;: *ReservedReg
-    address: 46
-  Reserved3:
-    &lt;&lt;: *ReservedReg
-    address: 47
-  SyncOutput:
-    address: 48
-    access: Write
-    type: U8
-    maskType: StartSyncOutputTarget
-    description: Digital output that will be set when acquisition starts.
-  Reserved4:
-    &lt;&lt;: *ReservedReg
-    address: 49
-  Reserved5:
-    &lt;&lt;: *ReservedReg
-    address: 50
-  Reserved6:
-    &lt;&lt;: *ReservedReg
-    address: 51
-  Reserved7:
-    &lt;&lt;: *ReservedReg
-    address: 52
-  Reserved8:
-    &lt;&lt;: *ReservedReg
-    address: 53
-  Reserved9:
-    &lt;&lt;: *ReservedReg
-    address: 54
-  Reserved10:
-    &lt;&lt;: *ReservedReg
-    address: 55
-  Reserved11:
-    &lt;&lt;: *ReservedReg
-    address: 56
-  Reserved12:
-    &lt;&lt;: *ReservedReg
-    address: 57
-  DO0TargetChannel: &amp;targetchannel
-    address: 58
-    access: Write
-    type: U8
-    maskType: AdcChannel
-    description: Target ADC channel that will be used to trigger a threshold event on DO0 pin.
-  DO1TargetChannel:
-    &lt;&lt;: *targetchannel
-    address: 59
-    description: Target ADC channel that will be used to trigger a threshold event on DO1 pin.
-  DO2TargetChannel:
-    &lt;&lt;: *targetchannel
-    address: 60
-    description: Target ADC channel that will be used to trigger a threshold event on DO2 pin.
-  DO3TargetChannel:
-    &lt;&lt;: *targetchannel
-    address: 61
-    description: Target ADC channel that will be used to trigger a threshold event on DO3 pin.
-  Reserved13:
-    &lt;&lt;: *ReservedReg
-    address: 62
-  Reserved14:
-    &lt;&lt;: *ReservedReg
-    address: 63
-  Reserved15:
-    &lt;&lt;: *ReservedReg
-    address: 64
-  Reserved16:
-    &lt;&lt;: *ReservedReg
-    address: 65
-  DO0Threshold: &amp;thresholdvalue
-    address: 66
-    access: Write
-    type: S16
-    description: Value used to threshold an ADC read, and trigger DO0 pin.
-  DO1Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 67
-    description: Value used to threshold an ADC read, and trigger DO1 pin.
-  DO2Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 68
-    description: Value used to threshold an ADC read, and trigger DO2 pin.
-  DO3Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 69
-    description: Value used to threshold an ADC read, and trigger DO3 pin.
-  Reserved17:
-    &lt;&lt;: *ReservedReg
-    address: 70
-  Reserved18:
-    &lt;&lt;: *ReservedReg
-    address: 71
-  Reserved19:
-    &lt;&lt;: *ReservedReg
-    address: 72
-  Reserved20:
-    &lt;&lt;: *ReservedReg
-    address: 73
-  DO0TimeAboveThreshold: &amp;bufferedthreshold
-    address: 74
-    access: Write
-    type: U16
-    defaultValue: 0
-    description: Time (ms) above threshold value that is required to trigger a DO0 pin event.
-  DO1TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 75
-    description: Time (ms) above threshold value that is required to trigger a DO1 pin event.
-  DO2TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 76
-    description: Time (ms) above threshold value that is required to trigger a DO2 pin event.
-  DO3TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 77
-    description: Time (ms) above threshold value that is required to trigger a DO3 pin event.
-  Reserved21:
-    &lt;&lt;: *ReservedReg
-    address: 78
-  Reserved22:
-    &lt;&lt;: *ReservedReg
-    address: 79
-  Reserved23:
-    &lt;&lt;: *ReservedReg
-    address: 80
-  Reserved24:
-    &lt;&lt;: *ReservedReg
-    address: 81
-  DO0TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 82
-    description: Time (ms) below threshold value that is required to trigger a DO0 pin event.
-  DO1TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 83
-    description: Time (ms) below threshold value that is required to trigger a DO1 pin event.
-  DO2TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 84
-    description: Time (ms) below threshold value that is required to trigger a DO2 pin event.
-  DO3TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 85
-    description: Time (ms) below threshold value that is required to trigger a DO3 pin event.
-  Reserved25:
-    &lt;&lt;: *ReservedReg
-    address: 86
-  Reserved26:
-    &lt;&lt;: *ReservedReg
-    address: 87
-  Reserved27:
-    &lt;&lt;: *ReservedReg
-    address: 88
-  Reserved28:
-    &lt;&lt;: *ReservedReg
-    address: 89
-  Reserved29:
-    &lt;&lt;: *ReservedReg
-    address: 90
-bitMasks:
-  DigitalInputs:
-    description: Available digital input lines.
-    bits:
-      DI0: 0x1
-  DigitalOutputs:
-    description: Specifies the state of port digital output lines.
-    bits:
-      DO0: 0x1
-      DO1: 0x2
-      DO2: 0x4
-      DO3: 0x8
-      DO0Changed: 0x10
-      DO1Changed: 0x20
-      DO2Changed: 0x40
-      DO4Changed: 0x80
-groupMasks:
-  RangeAndFilterConfig:
-    description: Available settings to set the range (Volt) and LowPass filter cutoff (Hz) of the ADC.
-    values:
-      Range5VLowPass1500Hz: 0x06
-      Range5VLowPass3000Hz: 0x05
-      Range5VLowPass6000Hz: 0x04
-      Range5VLowPass10300Hz: 0x03
-      Range5VLowPass13700Hz: 0x02
-      Range5VLowPass15000Hz: 0x01
-      Range10VLowPass1500Hz: 0x16
-      Range10VLowPass3000Hz: 0x15
-      Range10VLowPass6000Hz: 0x14
-      Range10VLowPass11900Hz: 0x13
-      Range10VLowPass18500Hz: 0x12
-      Range10VLowPass22000Hz: 0x11
-  SamplingRateMode:
-    description: Available sampling frequency settings of the ADC.
-    values:
-      SamplingRate1000Hz: 0x00
-      SamplingRate2000Hz: 0x01
-  TriggerConfig:
-    description: Available configurations for when using DI0 as an acquisition trigger.
-    values:
-      None: 0
-      StartOnRisingEdge: 1
-      StartOnFallingEdge: 2
-      SampleOnRisingEdge: 3
-  SyncConfig:
-    description: Available configurations when using DO0 pin to report firmware events.
-    values:
-      None: 0
-      Heartbeat: 1
-      Pulse: 2
-  StartSyncOutputTarget:
-    description: Available digital output pins that are able to be triggered on acquisition start.
-    values:
-      None: 0
-      DO0: 1
-      DO1: 2
-      DO2: 3
-      DO3: 4
-  AdcChannel:
-    description: Available target analog channels to be targeted for threshold events.
-    values:
-      Channel0: 0
-      Channel1: 1
-      Channel2: 2
-      Channel3: 3
-      None: 8
-</DeviceMetadata>
-                          <Modality>Behavior</Modality>
-                          <DeviceName>AnalogInput</DeviceName>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpLoadCellsEvents</Name>
                         </Expression>
                         <Expression xsi:type="SubscribeSubject">
                           <Name>Modality</Name>
@@ -1807,356 +139,59 @@ groupMasks:
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: LoadCells
-whoAmI: 1232
-firmwareVersion: "1.1"
-hardwareTargets: "1.0"
-registers:
-  AcquisitionState:
-    address: 32
-    access: Write
-    type: U8
-    maskType: EnableFlag
-    description: Enables the data acquisition.
-  LoadCellData:
-    address: 33
-    type: S16
-    length: 8
-    access: Event
-    description: Value of single ADC read from all load cell channels.
-    payloadSpec:
-      Channel0:
-        offset: 0
-      Channel1:
-        offset: 1
-      Channel2:
-        offset: 2
-      Channel3:
-        offset: 3
-      Channel4:
-        offset: 4
-      Channel5:
-        offset: 5
-      Channel6:
-        offset: 6
-      Channel7:
-        offset: 7
-  DigitalInputState:
-    address: 34
-    access: Event
-    type: U8
-    maskType: DigitalInputs
-    description: Status of the digital input pin 0. An event will be emitted when DI0Trigger == None.
-  SyncOutputState:
-    address: 35
-    access: Event
-    type: U8
-    maskType: SyncOutputs
-    description: Status of the digital output pin 0. An periodic event will be emitted when DO0Sync == ToggleEachSecond.
-  BufferThresholdState:
-    address: 36
-    access: Read
-    visibility: private
-    type: U8
-    description: State of the buffer thresholds.
-  Reserved0: &amp;ReservedReg
-    address: 37
-    access: Read
-    visibility: private
-    type: U8
-    description: Reserved
-  Reserved1:
-    &lt;&lt;: *ReservedReg
-    address: 38
-  DI0Trigger:
-    address: 39
-    access: Write
-    type: U8
-    maskType: TriggerConfig
-    description: Configuration of the digital input pin 0.
-  DO0Sync:
-    address: 40
-    access: Write
-    type: U8
-    maskType: SyncConfig
-    description: Configuration of the digital output pin 0.
-  DO0PulseWidth:
-    address: 41
-    access: Write
-    type: U8
-    minValue: 1
-    maxValue: 255
-    description: Pulse duration (ms) for the digital output pin 0. The pulse will only be emitted when DO0Sync == Pulse.
-  DigitalOutputSet: &amp;output
-    address: 42
-    type: U16
-    access: Write
-    maskType: DigitalOutputs
-    description: Set the specified digital output lines.
-  DigitalOutputClear:
-    &lt;&lt;: *output
-    address: 43
-    description: Clear the specified digital output lines.
-  DigitalOutputToggle:
-    &lt;&lt;: *output
-    address: 44
-    description: Toggle the specified digital output lines
-  DigitalOutputState:
-    &lt;&lt;: *output
-    address: 45
-    access: [Write, Event]
-    description: Write the state of all digital output lines. An event will be emitted when the value of any pin was changed by a threshold event.
-  Reserved2:
-    &lt;&lt;: *ReservedReg
-    address: 46
-  Reserved3:
-    &lt;&lt;: *ReservedReg
-    address: 47
-  OffsetLoadCell0: &amp;offsetloadcell
-    address: 48
-    access: Write
-    type: S16
-    minValue: -255
-    maxValue: 255
-    defaultValue: 0
-    description: Offset value for Load Cell channel 0.
-  OffsetLoadCell1:
-    &lt;&lt;: *offsetloadcell
-    address: 49
-    description: Offset value for Load Cell channel 1.
-  OffsetLoadCell2:
-    &lt;&lt;: *offsetloadcell
-    address: 50
-    description: Offset value for Load Cell channel 2.
-  OffsetLoadCell3:
-    &lt;&lt;: *offsetloadcell
-    address: 51
-    description: Offset value for Load Cell channel 3.
-  OffsetLoadCell4:
-    &lt;&lt;: *offsetloadcell
-    address: 52
-    description: Offset value for Load Cell channel 4.
-  OffsetLoadCell5:
-    &lt;&lt;: *offsetloadcell
-    address: 53
-    description: Offset value for Load Cell channel 5.
-  OffsetLoadCell6:
-    &lt;&lt;: *offsetloadcell
-    address: 54
-    description: Offset value for Load Cell channel 6.
-  OffsetLoadCell7:
-    &lt;&lt;: *offsetloadcell
-    address: 55
-    description: Offset value for Load Cell channel 7.
-  Reserved4:
-    &lt;&lt;: *ReservedReg
-    address: 56
-  Reserved5:
-    &lt;&lt;: *ReservedReg
-    address: 57
-  DO1TargetLoadCell: &amp;targetloadcell
-    address: 58
-    access: Write
-    type: U8
-    maskType: LoadCellChannel
-    description: Target Load Cell that will be used to trigger a threshold event on DO1 pin.
-  DO2TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 59
-    description: Target Load Cell that will be used to trigger a threshold event on DO2 pin.
-  DO3TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 60
-    description: Target Load Cell that will be used to trigger a threshold event on DO3 pin.
-  DO4TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 61
-    description: Target Load Cell that will be used to trigger a threshold event on DO4 pin.
-  DO5TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 62
-    description: Target Load Cell that will be used to trigger a threshold event on DO5 pin.
-  DO6TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 63
-    description: Target Load Cell that will be used to trigger a threshold event on DO6 pin.
-  DO7TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 64
-    description: Target Load Cell that will be used to trigger a threshold event on DO7 pin.
-  DO8TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 65
-    description: Target Load Cell that will be used to trigger a threshold event on DO8 pin.
-  DO1Threshold: &amp;thresholdvalue
-    address: 66
-    access: Write
-    type: S16
-    description: Value used to threshold a Load Cell read, and trigger DO1 pin.
-  DO2Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 67
-    description: Value used to threshold a Load Cell read, and trigger DO2 pin.
-  DO3Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 68
-    description: Value used to threshold a Load Cell read, and trigger DO3 pin.
-  DO4Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 69
-    description: Value used to threshold a Load Cell read, and trigger DO4 pin.
-  DO5Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 70
-    description: Value used to threshold a Load Cell read, and trigger DO5 pin.
-  DO6Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 71
-    description: Value used to threshold a Load Cell read, and trigger DO6 pin.
-  DO7Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 72
-    description: Value used to threshold a Load Cell read, and trigger DO7 pin.
-  DO8Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 73
-    description: Value used to threshold a Load Cell read, and trigger DO8 pin.
-  DO1TimeAboveThreshold: &amp;bufferedthreshold
-    address: 74
-    access: Write
-    type: U16
-    defaultValue: 0
-    description: Time (ms) above threshold value that is required to trigger a DO1 pin event.
-  DO2TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 75
-    description: Time (ms) above threshold value that is required to trigger a DO2 pin event.
-  DO3TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 76
-    description: Time (ms) above threshold value that is required to trigger a DO3 pin event.
-  DO4TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 77
-    description: Time (ms) above threshold value that is required to trigger a DO4 pin event.
-  DO5TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 78
-    description: Time (ms) above threshold value that is required to trigger a DO5 pin event.
-  DO6TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 79
-    description: Time (ms) above threshold value that is required to trigger a DO6 pin event.
-  DO7TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 80
-    description: Time (ms) above threshold value that is required to trigger a DO7 pin event.
-  DO8TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 81
-    description: Time (ms) above threshold value that is required to trigger a DO8 pin event.
-  DO1TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 82
-    description: Time (ms) below threshold value that is required to trigger a DO1 pin event.
-  DO2TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 83
-    description: Time (ms) below threshold value that is required to trigger a DO2 pin event.
-  DO3TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 84
-    description: Time (ms) below threshold value that is required to trigger a DO3 pin event.
-  DO4TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 85
-    description: Time (ms) below threshold value that is required to trigger a DO4 pin event.
-  DO5TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 86
-    description: Time (ms) below threshold value that is required to trigger a DO5 pin event.
-  DO6TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 87
-    description: Time (ms) below threshold value that is required to trigger a DO6 pin event.
-  DO7TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 88
-    description: Time (ms) below threshold value that is required to trigger a DO7 pin event.
-  DO8TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 89
-    description: Time (ms) below threshold value that is required to trigger a DO8 pin event.
-  EnableEvents:
-    address: 90
-    access: Write
-    type: U8
-    maskType: LoadCellEvents
-    description: Specifies the active events in the device.
-bitMasks:
-  DigitalInputs:
-    description: Available digital input lines.
-    bits:
-      DI0: 0x1
-  SyncOutputs:
-    description: Specifies the state output synchronization lines.
-    bits:
-      DO0: 0x1
-  DigitalOutputs:
-    description: Specifies the state of port digital output lines.
-    bits:
-      DO1: 0x1
-      DO2: 0x2
-      DO3: 0x4
-      DO4: 0x8
-      DO5: 0x10
-      DO6: 0x20
-      DO7: 0x40
-      DO8: 0x80
-  LoadCellEvents:
-    description: The events that can be enabled/disabled.
-    bits:
-      LoadCellData: 0x1
-      DigitalInput: 0x2
-      SyncOutput: 0x4
-      Thresholds: 0x8
-groupMasks:
-  TriggerConfig:
-    description: Available configurations when using a digital input as an acquisition trigger.
-    values:
-      None: 0
-      RisingEdge: 1
-      FallingEdge: 2
-  SyncConfig:
-    description: Available configurations when using a digital output pin to report firmware events.
-    values:
-      None: 0
-      Heartbeat: 1
-      Pulse: 2
-  LoadCellChannel:
-    description: Available target load cells to be targeted on threshold events.
-    values:
-      Channel0: 0
-      Channel1: 1
-      Channel2: 2
-      Channel3: 3
-      Channel4: 4
-      Channel5: 5
-      Channel6: 6
-      Channel7: 7
-      None: 8
-</DeviceMetadata>
+                          <DeviceMetadata />
+                          <Modality>Behavior</Modality>
+                          <DeviceName>AnalogInput</DeviceName>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>RigSchema</Name>
+                        </Expression>
+                        <Expression xsi:type="MemberSelector">
+                          <Selector>HarpAnalogInput</Selector>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.Core:FilterNotNull.bonsai" />
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:SubscribeWhen" />
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpLoadCellsEvents</Name>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>Modality</Name>
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="Modality" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p5:GetMetadata" />
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="DeviceMetadata" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>LoadCells</DeviceName>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>RigSchema</Name>
+                        </Expression>
+                        <Expression xsi:type="MemberSelector">
+                          <Selector>HarpLoadCells</Selector>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.Core:FilterNotNull.bonsai" />
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:SubscribeWhen" />
                         </Expression>
                         <Expression xsi:type="SubscribeSubject">
                           <Name>HarpWhiteRabbitEvents</Name>
                         </Expression>
                         <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p5:GetMetadata" />
+                          <Combinator xsi:type="p6:GetMetadata" />
                         </Expression>
                         <Expression xsi:type="PropertyMapping">
                           <PropertyMappings>
@@ -2172,76 +207,7 @@ groupMasks:
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: WhiteRabbit
-whoAmI: 1404
-firmwareVersion: "0.1"
-hardwareTargets: "0.1"
-registers:
-  ConnectedDevices:
-    address: 32
-    type: U16
-    access: Event
-    maskType: ClockOutChannels
-    description: "The currently connected output channels. An event will be generated when any of the channels are connected or disconnected."
-  Counter:
-    address: 33
-    type: U32
-    access: [Write, Event]
-    description: "The counter value. This value is incremented at the frequency specified by CounterFrequencyHz. Write to force a counter value."
-  CounterFrequencyHz:
-    address: 34
-    type: U16
-    access: Write
-    maxValue: 500
-    defaultValue: 0
-    minValue: 0
-    description: "The frequency at which the counter is incremented. A value of 0 disables the counter."
-  AuxPortMode:
-    address: 35
-    type: U8
-    access: Write
-    description: "The function of the auxiliary port."
-    maskType: AuxPortModeConfig
-  AuxPortBaudRate:
-    address: 36
-    type: U32
-    access: Write
-    defaultValue: 1000
-    minValue: 40
-    maxValue: 1000000
-    description: "The baud rate, in bps, of the auxiliary port when in HarpClock mode."
-
-bitMasks:
-  ClockOutChannels:
-    description: "Clock output channels"
-    bits:
-      None: 0x00
-      Channel0: 0x01
-      Channel1: 0x02
-      Channel2: 0x04
-      Channel3: 0x08
-      Channel4: 0x10
-      Channel5: 0x20
-      Channel6: 0x40
-      Channel7: 0x80
-      Channel8: 0x100
-      Channel9: 0x200
-      Channel10: 0x400
-      Channel11: 0x800
-      Channel12: 0x1000
-      Channel13: 0x2000
-      Channel14: 0x4000
-      Channel15: 0x8000
-groupMasks:
-  AuxPortModeConfig:
-    description: "Auxiliary port available configuration"
-    values:
-      Disabled: 0x0
-      HarpClock: 0x1
-      PPS: 0x2</DeviceMetadata>
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>ClockGenerator</DeviceName>
                         </Expression>
@@ -2257,7 +223,7 @@ groupMasks:
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p6:GetMetadata" />
+                          <Combinator xsi:type="p7:GetMetadata" />
                         </Expression>
                         <Expression xsi:type="PropertyMapping">
                           <PropertyMappings>
@@ -2265,63 +231,7 @@ groupMasks:
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: EnvironmentSensor
-whoAmI: 1405
-firmwareVersion: "0.1"
-hardwareTargets: "0.1"
-registers:
-  Pressure:
-    access: Read
-    address: 32
-    type: U32
-    description: Pressure, in Pa
-  Temperature:
-    access: Read
-    address: 33
-    type: Float
-    description: Temperature in degrees C
-  Humidity:
-    access: Read
-    address: 34
-    type: Float
-    description: Humidity, in %RH
-  SensorData:
-    access: Event
-    address: 35
-    type: Float
-    description: A periodic event will be emitted with aggregated data from all sensors.
-    length: 3
-    payloadSpec:
-      Pressure:
-        offset: 0
-        description: Pressure, in Pa
-      Temperature:
-        offset: 1
-        description: Temperature in degrees C
-      Humidity:
-        offset: 2
-        description: Humidity, in %RH
-  EnableEvents:
-    access: Write
-    address: 36
-    type: U8
-    maskType: Events
-    description: Enables (~2Hz) or disables the SensorData events
-  TemperatureOffsetC:
-    access: Read
-    address: 37
-    type: Float
-    description: Fixed experimentally-determined calibration offset added to nominal temperature sensor reading in degrees C
-bitMasks:
-  Events:
-    bits:
-      Disable: 0x0
-      SensorData: 0x1
-    description: Available events on the device
-</DeviceMetadata>
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>EnvironmentSensor</DeviceName>
                         </Expression>
@@ -2347,21 +257,29 @@ bitMasks:
                         <Edge From="20" To="23" Label="Source2" />
                         <Edge From="21" To="22" Label="Source1" />
                         <Edge From="22" To="23" Label="Source3" />
-                        <Edge From="24" To="29" Label="Source1" />
+                        <Edge From="23" To="27" Label="Source1" />
+                        <Edge From="24" To="25" Label="Source1" />
                         <Edge From="25" To="26" Label="Source1" />
-                        <Edge From="26" To="29" Label="Source2" />
-                        <Edge From="27" To="28" Label="Source1" />
-                        <Edge From="28" To="29" Label="Source3" />
-                        <Edge From="30" To="35" Label="Source1" />
+                        <Edge From="26" To="27" Label="Source2" />
+                        <Edge From="28" To="33" Label="Source1" />
+                        <Edge From="29" To="30" Label="Source1" />
+                        <Edge From="30" To="33" Label="Source2" />
                         <Edge From="31" To="32" Label="Source1" />
-                        <Edge From="32" To="35" Label="Source2" />
-                        <Edge From="33" To="34" Label="Source1" />
-                        <Edge From="34" To="35" Label="Source3" />
-                        <Edge From="36" To="41" Label="Source1" />
-                        <Edge From="37" To="38" Label="Source1" />
-                        <Edge From="38" To="41" Label="Source2" />
+                        <Edge From="32" To="33" Label="Source3" />
+                        <Edge From="33" To="37" Label="Source1" />
+                        <Edge From="34" To="35" Label="Source1" />
+                        <Edge From="35" To="36" Label="Source1" />
+                        <Edge From="36" To="37" Label="Source2" />
+                        <Edge From="38" To="43" Label="Source1" />
                         <Edge From="39" To="40" Label="Source1" />
-                        <Edge From="40" To="41" Label="Source3" />
+                        <Edge From="40" To="43" Label="Source2" />
+                        <Edge From="41" To="42" Label="Source1" />
+                        <Edge From="42" To="43" Label="Source3" />
+                        <Edge From="44" To="49" Label="Source1" />
+                        <Edge From="45" To="46" Label="Source1" />
+                        <Edge From="46" To="49" Label="Source2" />
+                        <Edge From="47" To="48" Label="Source1" />
+                        <Edge From="48" To="49" Label="Source3" />
                       </Edges>
                     </Workflow>
                   </Expression>
@@ -2379,9 +297,9 @@ bitMasks:
                           <Combinator xsi:type="rx:WithLatestFrom" />
                         </Expression>
                         <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p7:ModifyMessage">
-                            <p7:Address xsi:nil="true" />
-                            <p7:MessageTypeModified>Write</p7:MessageTypeModified>
+                          <Combinator xsi:type="p8:ModifyMessage">
+                            <p8:Address xsi:nil="true" />
+                            <p8:MessageTypeModified>Write</p8:MessageTypeModified>
                           </Combinator>
                         </Expression>
                         <Expression xsi:type="SubscribeSubject">
@@ -2392,529 +310,16 @@ bitMasks:
                             <Property Name="Modality" />
                           </PropertyMappings>
                         </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="Extensions\HarpBehaviorGetMetadata.bonsai" />
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="beh:GetDeviceMetadata" />
+                        </Expression>
                         <Expression xsi:type="PropertyMapping">
                           <PropertyMappings>
                             <Property Name="DeviceMetadata" />
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: Behavior
-whoAmI: 1216
-firmwareVersion: "3.2"
-hardwareTargets: "1.1"
-registers:
-  DigitalInputState:
-    address: 32
-    access: Event
-    type: U8
-    maskType: DigitalInputs
-    description: Reflects the state of DI digital lines of each Port
-  Reserved0: &amp;reserved
-    address: 33
-    type: U8
-    access: Read
-    description: Reserved for future use
-    visibility: private
-  OutputSet: &amp;output
-    address: 34
-    type: U16
-    access: Write
-    maskType: DigitalOutputs
-    description: Set the specified digital output lines.
-  OutputClear:
-    &lt;&lt;: *output
-    address: 35
-    description: Clear the specified digital output lines
-  OutputToggle:
-    &lt;&lt;: *output
-    address: 36
-    description: Toggle the specified digital output lines
-  OutputState:
-    &lt;&lt;: *output
-    address: 37
-    description: Write the state of all digital output lines
-  PortDIOSet: &amp;portDIO
-    address: 38
-    type: U8
-    access: Write
-    maskType: PortDigitalIOS
-    description: Set the specified port DIO lines
-  PortDIOClear:
-    &lt;&lt;: *portDIO
-    address: 39
-    description: Clear the specified port DIO lines
-  PortDIOToggle:
-    &lt;&lt;: *portDIO
-    address: 40
-    description: Toggle the specified port DIO lines
-  PortDIOState:
-    &lt;&lt;: *portDIO
-    address: 41
-    description: Write the state of all port DIO lines
-  PortDIODirection:
-    &lt;&lt;: *portDIO
-    address: 42
-    description: Specifies which of the port DIO lines are outputs
-  PortDIOStateEvent:
-    &lt;&lt;: *portDIO
-    address: 43
-    access: Event
-    description: Specifies the state of the port DIO lines on a line change
-  AnalogData:
-    address: 44
-    type: S16
-    length: 3
-    access: Event
-    description: Voltage at the ADC input and encoder value on Port 2
-    payloadSpec:
-      AnalogInput0:
-        offset: 0
-        description: The voltage at the output of the ADC channel 0.
-      Encoder:
-        offset: 1
-        description: The quadrature counter value on Port 2
-      AnalogInput1:
-        offset: 2
-        description: The voltage at the output of the ADC channel 1.
-  OutputPulseEnable:
-    &lt;&lt;: *output
-    address: 45
-    description: Enables the pulse function for the specified output lines
-  PulseDOPort0: &amp;pulseDO
-    address: 46
-    type: U16
-    access: Write
-    minValue: 1
-    description: Specifies the duration of the output pulse in milliseconds.
-  PulseDOPort1:
-    &lt;&lt;: *pulseDO
-    address: 47
-  PulseDOPort2:
-    &lt;&lt;: *pulseDO
-    address: 48
-  PulseSupplyPort0:
-    &lt;&lt;: *pulseDO
-    address: 49
-  PulseSupplyPort1:
-    &lt;&lt;: *pulseDO
-    address: 50
-  PulseSupplyPort2:
-    &lt;&lt;: *pulseDO
-    address: 51
-  PulseLed0:
-    &lt;&lt;: *pulseDO
-    address: 52
-  PulseLed1:
-    &lt;&lt;: *pulseDO
-    address: 53
-  PulseRgb0:
-    &lt;&lt;: *pulseDO
-    address: 54
-  PulseRgb1:
-    &lt;&lt;: *pulseDO
-    address: 55
-  PulseDO0:
-    &lt;&lt;: *pulseDO
-    address: 56
-  PulseDO1:
-    &lt;&lt;: *pulseDO
-    address: 57
-  PulseDO2:
-    &lt;&lt;: *pulseDO
-    address: 58
-  PulseDO3:
-    &lt;&lt;: *pulseDO
-    address: 59
-  PwmFrequencyDO0: &amp;pwmFreq
-    address: 60
-    type: U16
-    access: Write
-    minValue: 1
-    description: Specifies the frequency of the PWM at DO0.
-  PwmFrequencyDO1:
-    &lt;&lt;: *pwmFreq
-    address: 61
-    description: Specifies the frequency of the PWM at DO1.
-  PwmFrequencyDO2:
-    &lt;&lt;: *pwmFreq
-    address: 62
-    description: Specifies the frequency of the PWM at DO2.
-  PwmFrequencyDO3:
-    &lt;&lt;: *pwmFreq
-    address: 63
-    description: Specifies the frequency of the PWM at DO3.
-  PwmDutyCycleDO0: &amp;pwmDutyCycle
-    address: 64
-    type: U8
-    access: Write
-    minValue: 1
-    maxValue: 99
-    description: Specifies the duty cycle of the PWM at DO0.
-  PwmDutyCycleDO1:
-    &lt;&lt;: *pwmDutyCycle
-    address: 65
-    description: Specifies the duty cycle of the PWM at DO1.
-  PwmDutyCycleDO2:
-    &lt;&lt;: *pwmDutyCycle
-    address: 66
-    description: Specifies the duty cycle of the PWM at DO2.
-  PwmDutyCycleDO3:
-    &lt;&lt;: *pwmDutyCycle
-    address: 67
-    description: Specifies the duty cycle of the PWM at DO3.
-  PwmStart: &amp;pwmStartStop
-    address: 68
-    type: U8
-    access: Write
-    maskType: PwmOutputs
-    description: Starts the PWM on the selected output lines.
-  PwmStop:
-    &lt;&lt;: *pwmStartStop
-    address: 69
-    description: Stops the PWM on the selected output lines.
-  RgbAll:
-    address: 70
-    type: &amp;rgbType U8
-    length: 6
-    access: &amp;rgbAccess Write
-    description: Specifies the state of all RGB LED channels.
-    payloadSpec:
-      Green0:
-        offset: 0
-        description: The intensity of the green channel in the RGB0 LED.
-      Red0:
-        offset: 1
-        description: The intensity of the red channel in the RGB0 LED.
-      Blue0:
-        offset: 2
-        description: The intensity of the blue channel in the RGB0 LED.
-      Green1:
-        offset: 3
-        description: The intensity of the green channel in the RGB1 LED.
-      Red1:
-        offset: 4
-        description: The intensity of the red channel in the RGB1 LED.
-      Blue1:
-        offset: 5
-        description: The intensity of the blue channel in the RGB1 LED.
-  Rgb0: &amp;rgbRegister
-    address: 71
-    type: *rgbType
-    length: 3
-    access: *rgbAccess
-    description: Specifies the state of the RGB0 LED channels.
-    interfaceType: RgbPayload
-    payloadSpec:
-      Green:
-        offset: 0
-        description: The intensity of the green channel in the RGB LED.
-      Red:
-        offset: 1
-        description: The intensity of the red channel in the RGB LED.
-      Blue:
-        offset: 2
-        description: The intensity of the blue channel in the RGB LED.
-  Rgb1:
-    &lt;&lt;: *rgbRegister
-    address: 72
-    description: Specifies the state of the RGB1 LED channels.
-  Led0Current: &amp;ledCurrent
-    address: 73
-    type: U8
-    access: Write
-    minValue: 2
-    maxValue: 100
-    description: Specifies the configuration of current to drive LED 0.
-  Led1Current:
-    &lt;&lt;: *ledCurrent
-    address: 74
-    description: Specifies the configuration of current to drive LED 1.
-  Led0MaxCurrent: &amp;ledMaxCurrent
-    address: 75
-    type: U8
-    access: Write
-    minValue: 5
-    maxValue: 100
-    description: Specifies the configuration of current to drive LED 0.
-  Led1MaxCurrent:
-    &lt;&lt;: *ledMaxCurrent
-    address: 76
-    description: Specifies the configuration of current to drive LED 1.
-  EventEnable:
-    address: 77
-    type: U8
-    access: Write
-    maskType: Events
-    description: Specifies the active events in the device.
-  StartCameras: &amp;cameraControl
-    address: 78
-    type: U8
-    access: Write
-    maskType: CameraOutputs
-    description: Specifies the camera outputs to enable in the device.
-  StopCameras:
-    &lt;&lt;: *cameraControl
-    access: [Write, Event]
-    address: 79
-    description: Specifies the camera outputs to disable in the device. An event will be issued when the trigger signal is actually stopped being generated.
-  EnableServos: &amp;servoControl
-    address: 80
-    type: U8
-    access: Write
-    maskType: ServoOutputs
-    description: Specifies the servo outputs to enable in the device.
-  DisableServos:
-    &lt;&lt;: *servoControl
-    address: 81
-    description: Specifies the servo outputs to disable in the device.
-  EnableEncoders:
-    address: 82
-    type: U8
-    access: Write
-    maskType: EncoderInputs
-    description: Specifies the port quadrature counters to enable in the device.
-  EncoderMode:
-    address: 83
-    type: U8
-    access: Write
-    maskType: EncoderModeConfig
-    description: Configures the operation mode of the quadrature encoders.
-  Reserved2:
-    &lt;&lt;: *reserved
-    address: 84
-  Reserved3:
-    &lt;&lt;: *reserved
-    address: 85
-  Reserved4:
-    &lt;&lt;: *reserved
-    address: 86
-  Reserved5:
-    &lt;&lt;: *reserved
-    address: 87
-  Reserved6:
-    &lt;&lt;: *reserved
-    address: 88
-  Reserved7:
-    &lt;&lt;: *reserved
-    address: 89
-  Reserved8:
-    &lt;&lt;: *reserved
-    address: 90
-  Reserved9:
-    &lt;&lt;: *reserved
-    address: 91
-  Camera0Frame: &amp;frameAcquired
-    address: 92
-    type: U8
-    access: Event
-    maskType: FrameAcquired
-    description: Specifies that a frame was acquired on camera 0.
-  Camera0Frequency: &amp;cameraFreq
-    address: 93
-    type: U16
-    access: Write
-    minValue: 1
-    maxValue: 600
-    description: Specifies the trigger frequency for camera 0.
-  Camera1Frame:
-    &lt;&lt;: *frameAcquired
-    address: 94
-    description: Specifies that a frame was acquired on camera 1.
-  Camera1Frequency:
-    &lt;&lt;: *cameraFreq
-    address: 95
-    description: Specifies the trigger frequency for camera 1.
-  Reserved10:
-    &lt;&lt;: *reserved
-    address: 96
-  Reserved11:
-    &lt;&lt;: *reserved
-    address: 97
-  Reserved12:
-    &lt;&lt;: *reserved
-    address: 98
-  Reserved13:
-    &lt;&lt;: *reserved
-    address: 99
-  ServoMotor2Period: &amp;servoPeriod
-    address: 100
-    type: U16
-    access: Write
-    minValue: 2
-    maxValue: 65534
-    description: Specifies the period of the servo motor in DO2, in microseconds.
-  ServoMotor2Pulse: &amp;servoPulse
-    address: 101
-    type: U16
-    access: Write
-    minValue: 6
-    maxValue: 65530
-    description: Specifies the pulse of the servo motor in DO2, in microseconds.
-  ServoMotor3Period:
-    &lt;&lt;: *servoPeriod
-    address: 102
-    description: Specifies the period of the servo motor in DO3, in microseconds.
-  ServoMotor3Pulse:
-    &lt;&lt;: *servoPulse
-    address: 103
-    description: Specifies the pulse of the servo motor in DO3, in microseconds.
-  Reserved14:
-    &lt;&lt;: *reserved
-    address: 104
-  Reserved15:
-    &lt;&lt;: *reserved
-    address: 105
-  Reserved16:
-    &lt;&lt;: *reserved
-    address: 106
-  Reserved17:
-    &lt;&lt;: *reserved
-    address: 107
-  EncoderReset:
-    address: 108
-    type: U8
-    access: Write
-    maskType: EncoderInputs
-    description: Reset the counter of the specified encoders to zero.
-  Reserved18:
-    &lt;&lt;: *reserved
-    address: 109
-  EnableSerialTimestamp:
-    address: 110
-    type: U8
-    access: Write
-    description: Enables the timestamp for serial TX.
-  MimicPort0IR: &amp;mimic
-    address: 111
-    type: U8
-    access: Write
-    maskType: MimicOutput
-    description: Specifies the digital output to mimic the Port 0 IR state.
-  MimicPort1IR:
-    &lt;&lt;: *mimic
-    address: 112
-    description: Specifies the digital output to mimic the Port 1 IR state.
-  MimicPort2IR:
-    &lt;&lt;: *mimic
-    address: 113
-    description: Specifies the digital output to mimic the Port 2 IR state.
-  Reserved20:
-    &lt;&lt;: *reserved
-    address: 114
-  Reserved21:
-    &lt;&lt;: *reserved
-    address: 115
-  Reserved22:
-    &lt;&lt;: *reserved
-    address: 116
-  MimicPort0Valve:
-    &lt;&lt;: *mimic
-    address: 117
-    description: Specifies the digital output to mimic the Port 0 valve state.
-  MimicPort1Valve:
-    &lt;&lt;: *mimic
-    address: 118
-    description: Specifies the digital output to mimic the Port 1 valve state.
-  MimicPort2Valve:
-    &lt;&lt;: *mimic
-    address: 119
-    description: Specifies the digital output to mimic the Port 2 valve state.
-  Reserved23:
-    &lt;&lt;: *reserved
-    address: 120
-  Reserved24:
-    &lt;&lt;: *reserved
-    address: 121
-  PokeInputFilter:
-    address: 122
-    type: U8
-    access: Write
-    description: Specifies the low pass filter time value for poke inputs, in ms.
-bitMasks:
-  DigitalInputs:
-    description: Specifies the state of port digital input lines.
-    bits:
-      DIPort0: 0x1
-      DIPort1: 0x2
-      DIPort2: 0x4
-      DI3: 0x8
-  DigitalOutputs:
-    description: Specifies the state of port digital output lines.
-    bits:
-      DOPort0: 0x1
-      DOPort1: 0x2
-      DOPort2: 0x4
-      SupplyPort0: 0x8
-      SupplyPort1: 0x10
-      SupplyPort2: 0x20
-      Led0: 0x40
-      Led1: 0x80
-      Rgb0: 0x100
-      Rgb1: 0x200
-      DO0: 0x400
-      DO1: 0x800
-      DO2: 0x1000
-      DO3: 0x2000
-  PortDigitalIOS:
-    description: Specifies the state of the port DIO lines.
-    bits:
-      DIO0: 0x1
-      DIO1: 0x2
-      DIO2: 0x4
-  PwmOutputs:
-    description: Specifies the state of PWM output lines.
-    bits:
-      PwmDO0: 0x1
-      PwmDO1: 0x2
-      PwmDO2: 0x4
-      PwmDO3: 0x8
-  Events:
-    description: Specifies the active events in the device.
-    bits:
-      PortDI: 0x1
-      PortDIO: 0x2
-      AnalogData: 0x4
-      Camera0: 0x8
-      Camera1: 0x10
-  CameraOutputs:
-    description: Specifies camera output enable bits.
-    bits:
-      CameraOutput0: 0x1
-      CameraOutput1: 0x2
-  ServoOutputs:
-    description: Specifies servo output enable bits.
-    bits:
-      ServoOutput2: 0x4
-      ServoOutput3: 0x8
-  EncoderInputs:
-    description: Specifies quadrature counter enable bits.
-    bits:
-      EncoderPort2: 0x4
-  FrameAcquired:
-    description: Specifies that camera frame was acquired.
-    bits:
-      FrameAcquired: 0x1
-groupMasks:
-  MimicOutput:
-    description: Specifies the target IO on which to mimic the specified register.
-    values:
-      None: 0
-      DIO0: 1
-      DIO1: 2
-      DIO2: 3
-      DO0: 4
-      DO1: 5
-      DO2: 6
-      DO3: 7
-  EncoderModeConfig:
-    description: Specifies the type of reading made from the quadrature encoder.
-    values:
-      Position: 0
-      Displacement: 1</DeviceMetadata>
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>HarpCommands/Behavior</DeviceName>
                         </Expression>
@@ -2928,9 +333,9 @@ groupMasks:
                           <Combinator xsi:type="rx:WithLatestFrom" />
                         </Expression>
                         <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p7:ModifyMessage">
-                            <p7:Address xsi:nil="true" />
-                            <p7:MessageTypeModified>Write</p7:MessageTypeModified>
+                          <Combinator xsi:type="p8:ModifyMessage">
+                            <p8:Address xsi:nil="true" />
+                            <p8:MessageTypeModified>Write</p8:MessageTypeModified>
                           </Combinator>
                         </Expression>
                         <Expression xsi:type="SubscribeSubject">
@@ -2941,801 +346,16 @@ groupMasks:
                             <Property Name="Modality" />
                           </PropertyMappings>
                         </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="Extensions\HarpStepperDriverGetMetadata.bonsai" />
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p3:GetDeviceMetadata" />
+                        </Expression>
                         <Expression xsi:type="PropertyMapping">
                           <PropertyMappings>
                             <Property Name="DeviceMetadata" />
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: StepperDriver
-whoAmI: 1130
-firmwareVersion: "0.7"
-hardwareTargets: "1.0"
-registers:
-  ##################################
-  # Enable and disable
-  ##################################
-  EnableDriver:
-    address: 32
-    type: U8
-    access: Write
-    maskType: StepperMotors
-    description: Enables the driver for a specific motor. If the driver is already enabled, the driver remains enabled.
-  DisableDriver:
-    address: 33
-    type: U8
-    access: Write
-    maskType: StepperMotors
-    description: Disables the driver for a specific stepper motor, which prevents current from being sent to the motor or load. If the driver is already disabled, the driver remains disabled.
-  EnableEncoders:
-    address: 34
-    type: U8
-    access: Write
-    maskType: QuadratureEncoders
-    description: Specifies a set of port quadrature counters to enable in the device.
-  DisableEncoders:
-    address: 35
-    type: U8
-    access: Write
-    maskType: QuadratureEncoders
-    description: Specifies a set of port quadrature counters to disable in the device.
-  EnableDigitalInputs:
-    address: 36
-    type: U8
-    access: Write
-    maskType: DigitalInputs
-    description: Specifies a set of digital inputs to enable in the device.
-  DisableDigitalInputs:
-    address: 37
-    type: U8
-    access: Write
-    maskType: DigitalInputs
-    description: Specifies a set of digital inputs to disable in the device.
-
-  ##################################
-  # Configuration
-  ##################################
-  Motor0OperationMode: &amp;opmode
-    address: 38
-    type: U8
-    access: Write
-    maskType: MotorOperationMode
-    description: Configures the operation mode for motor 0.
-  Motor1OperationMode:
-    &lt;&lt;: *opmode
-    address: 39
-    description: Configures the operation mode for motor 1.
-  Motor2OperationMode:
-    &lt;&lt;: *opmode
-    address: 40
-    description: Configures the operation mode for motor 2.
-  Motor3OperationMode:
-    &lt;&lt;: *opmode
-    address: 41
-    description: Configures the operation mode for motor 3.
-  Motor0MicrostepResolution: &amp;microstep_resolution
-    address: 42
-    type: U8
-    access: Write
-    maskType: MicrostepResolution
-    description: Configures the microstep resolution for motor 0.
-  Motor1MicrostepResolution:
-    &lt;&lt;: *microstep_resolution
-    address: 43
-    description: Configures the microstep resolution for motor 1.
-  Motor2MicrostepResolution:
-    &lt;&lt;: *microstep_resolution
-    address: 44
-    description: Configures the microstep resolution for motor 2.
-  Motor3MicrostepResolution:
-    &lt;&lt;: *microstep_resolution
-    address: 45
-    description: Configures the microstep resolution for motor 3.
-
-  Motor0MaximumRunCurrent: &amp;maxcurrent
-    address: 46
-    minValue: 0.139
-    maxValue: 2.1
-    defaultValue: 0.2
-    type: Float
-    access: Write
-    description: Configures the maximum run RMS current per phase for motor 0.
-  Motor1MaximumRunCurrent:
-    &lt;&lt;: *maxcurrent
-    address: 47
-    description: Configures the maximum run RMS current per phase for motor 1.
-  Motor2MaximumRunCurrent:
-    &lt;&lt;: *maxcurrent
-    address: 48
-    description: Configures the maximum run RMS current per phase for motor 2.
-  Motor3MaximumRunCurrent:
-    &lt;&lt;: *maxcurrent
-    address: 49
-    description: Configures the maximum run RMS current per phase for motor 3.
-
-  Motor0HoldCurrentReduction: &amp;currentreduction
-    address: 50
-    type: U8
-    access: Write
-    maskType: HoldCurrentReduction
-    description: Configures the hold current reduction for motor 0.
-  Motor1HoldCurrentReduction:
-    &lt;&lt;: *currentreduction
-    address: 51
-    description: Configures the hold current reduction for motor 1.
-  Motor2HoldCurrentReduction:
-    &lt;&lt;: *currentreduction
-    address: 52
-    description: Configures the hold current reduction for motor 2.
-  Motor3HoldCurrentReduction:
-    &lt;&lt;: *currentreduction
-    address: 53
-    description: Configures the hold current reduction for motor 3.
-
-  Motor0StepInterval: &amp;nominalinterval
-    address: 54
-    minValue: 100
-    maxValue: 20000
-    defaultValue: 250
-    type: U16
-    access: Write
-    description: Configures the time between step motor pulses (us) when running at nominal speed for motor 0.
-  Motor1StepInterval:
-    &lt;&lt;: *nominalinterval
-    address: 55
-    description: Configures the time between step motor pulses (us) when running at nominal speed for motor 1.
-  Motor2StepInterval:
-    &lt;&lt;: *nominalinterval
-    address: 56
-    description: Configures the time between step motor pulses (us) when running at nominal speed for motor 2.
-  Motor3StepInterval:
-    &lt;&lt;: *nominalinterval
-    address: 57
-    description: Configures the time between step motor pulses (us) when running at nominal speed for motor 3.
-
-  Motor0MaximumStepInterval: &amp;maxinterval
-    address: 58
-    minValue: 100
-    maxValue: 20000
-    defaultValue: 2000
-    type: U16
-    access: Write
-    description: Configures the time between step motor pulses (us) used when starting or stopping a movement for motor 0.
-  Motor1MaximumStepInterval:
-    &lt;&lt;: *maxinterval
-    address: 59
-    description: Configures the time between step motor pulses (us) used when starting or stopping a movement for motor 1.
-  Motor2MaximumStepInterval:
-    &lt;&lt;: *maxinterval
-    address: 60
-    description: Configures the time between step motor pulses (us) used when starting or stopping a movement for motor 2.
-  Motor3MaximumStepInterval:
-    &lt;&lt;: *maxinterval
-    address: 61
-    description: Configures the time between step motor pulses (us) used when starting or stopping a movement for motor 3.
-
-  Motor0StepAccelerationInterval: &amp;accperiod
-    address: 62
-    minValue: 2
-    maxValue: 2000
-    defaultValue: 10
-    type: U16
-    access: Write
-    description: Configures the acceleration for motor 0. The time between step pulses is decreased by this value when accelerating and increased when decelerating.
-  Motor1StepAccelerationInterval:
-    &lt;&lt;: *accperiod
-    address: 63
-    description: Configures the acceleration for motor 1. The time between step pulses is decreased by this value when accelerating and increased when decelerating.
-  Motor2StepAccelerationInterval:
-    &lt;&lt;: *accperiod
-    address: 64
-    description: Configures the acceleration for motor 2. The time between step pulses is decreased by this value when accelerating and increased when decelerating.
-  Motor3StepAccelerationInterval:
-    &lt;&lt;: *accperiod
-    address: 65
-    description: Configures the acceleration for motor 3. The time between step pulses is decreased by this value when accelerating and increased when decelerating.
-
-  EncoderMode:
-    address: 66
-    type: U8
-    access: Write
-    maskType: EncoderModeConfig
-    description: Configures the operation mode of the quadrature encoder.
-  EncoderSamplingRate:
-    address: 67
-    type: U8
-    access: Write
-    maskType: EncoderSamplingRateConfig
-    description: Configures the sampling rate of the quadrature encoder event.
-
-  Input0OpMode: &amp;input_mode
-    address: 68
-    type: U8
-    access: Write
-    maskType: InputOpModeConfig
-    description: Configures the operation mode for digital input 0.
-  Input1OpMode:
-    &lt;&lt;: *input_mode
-    address: 69
-    description: Configures the operation mode for digital input 1.
-  Input2OpMode:
-    &lt;&lt;: *input_mode
-    address: 70
-    description: Configures the operation mode for digital input 2.
-  Input3OpMode:
-    &lt;&lt;: *input_mode
-    address: 71
-    description: Configures the operation mode for digital input 3.
-
-  InterlockEnabled:
-    address: 72
-    type: U8
-    access: Write
-    maskType: InterlockEnabledConfig
-    description: Configures the external interlock connector state required for the device to be enabled.
-
-  AccumulatedStepsSamplingRate:
-    address: 73
-    type: U8
-    access: Write
-    maskType: AccumulatedStepsSamplingRateConfig
-    description: Configures the dispatch rate of the accumulated steps event.
-
-  ##################################
-  # Events
-  ##################################
-  MotorStopped:
-    address: 74
-    type: U8
-    access: Event
-    description: Emitted when any of the motors stops.
-    payloadSpec:
-      State:
-        description: Specifies which motors are currently stopped.
-        maskType: StepperMotors
-        mask: 0x0F
-      Changed:
-        description: Specifies which motor just stopped.
-        maskType: StepperMotors
-        mask: 0xF0
-  MotorOverVoltageDetection:
-    address: 75
-    type: U8
-    access: Event
-    maskType: StepperMotors
-    description: Contains a bit mask specifying the motor where the over voltage detection and protection mechanism occurred, which can happen when the there's a quick deceleration from a high velocity or when the motor stalls (not implemented).
-  MotorRaisedError:
-    address: 76
-    type: U8
-    access: Event
-    maskType: StepperMotors
-    description: Contains a bit mask specifying the motor that triggered the error which can be happen in case of short-circuit or driver temperature above 165 degrees celsius.
-
-  Encoders:
-    address: 77
-    type: S16
-    length: 3
-    access: [Event, Write]
-    description: Contains the quadrature encoder readings.
-    payloadSpec:
-      Encoder0:
-        offset: 0
-        description: The quadrature counter on port ENC 0.
-      Encoder1:
-        offset: 1
-        description: The quadrature counter on port ENC 1.
-      Encoder2:
-        offset: 2
-        description: The quadrature counter on port ENC 2.
-
-  DigitalInputState:
-    address: 78
-    access: Event
-    type: U8
-    maskType: DigitalInputStates
-    description: Reflects the state of the digital input lines.
-
-  DeviceState:
-    address: 79
-    type: U8
-    access: Event
-    maskType: DeviceStateMode
-    description: Contains the state of the device.
-
-  ##################################
-  # Movement control
-  ##################################
-
-  MoveRelative:
-    address: 80
-    type: S32
-    length: 4
-    access: Write
-    description: Moves all motors by the number of steps written in this array register and set the direction according to the value's signal. If a motor is disable, the user should set the value to 0.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Contains the number of steps used to move motor 0.
-      Motor1:
-        offset: 1
-        description: Contains the number of steps used to move motor 1.
-      Motor2:
-        offset: 2
-        description: Contains the number of steps used to move motor 2.
-      Motor3:
-        offset: 3
-        description: Contains the number of steps used to move motor 3.
-
-  Motor0MoveRelative: &amp;motorsteps
-    address: 81
-    type: S32
-    access: Write
-    description: Moves motor 0 by the number of steps written in this register and set the direction according to the value's signal.
-  Motor1MoveRelative:
-    &lt;&lt;: *motorsteps
-    address: 82
-    description: Moves motor 1 by the number of steps written in this register and set the direction according to the value's signal.
-  Motor2MoveRelative:
-    &lt;&lt;: *motorsteps
-    address: 83
-    description: Moves motor 2 by the number of steps written in this register and set the direction according to the value's signal.
-  Motor3MoveRelative:
-    &lt;&lt;: *motorsteps
-    address: 84
-    description: Moves motor 3 by the number of steps written in this register and set the direction according to the value's signal.
-
-  MoveAbsolute:
-    address: 85
-    type: S32
-    length: 4
-    access: Write
-    description: Moves all motors to the absolute position written in this array register. If a motor is disable, the user should set the value to 0.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Contains the absolute position to move motor 0.
-      Motor1:
-        offset: 1
-        description: Contains the absolute position to move motor 1.
-      Motor2:
-        offset: 2
-        description: Contains the absolute position to move motor 2.
-      Motor3:
-        offset: 3
-        description: Contains the absolute position to move motor 3.
-
-  Motor0MoveAbsolute: &amp;motorabsolutesteps
-    address: 86
-    type: S32
-    access: Write
-    description: Moves motor 0 to the absolute position written in this register.
-  Motor1MoveAbsolute:
-    &lt;&lt;: *motorabsolutesteps
-    address: 87
-    description: Moves motor 1 to the absolute position written in this register.
-  Motor2MoveAbsolute:
-    &lt;&lt;: *motorabsolutesteps
-    address: 88
-    description: Moves motor 2 to the absolute position written in this register.
-  Motor3MoveAbsolute:
-    &lt;&lt;: *motorabsolutesteps
-    address: 89
-    description: Moves motor 3 to the absolute position written in this register.
-
-  AccumulatedSteps:
-    address: 90
-    type: S32
-    length: 4
-    access: [Event, Write]
-    description: Contains the accumulated steps of all motors. Write a value to set the accumulated steps. An event will be emitted with a dispatch rate defined in AccumulatedStepsSamplingRate.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Contains the accumulated steps of motor 0.
-      Motor1:
-        offset: 1
-        description: Contains the accumulated steps of motor 1.
-      Motor2:
-        offset: 2
-        description: Contains the accumulated steps of motor 2.
-      Motor3:
-        offset: 3
-        description: Contains the accumulated steps of motor 3.
-
-  Mortor0AccumulatedSteps: &amp;motorsaccumulatedsteps
-    address: 91
-    type: S32
-    access: Write
-    description: Contains the accumulated number of steps of motor 0. Write a value to set the current number of accumulated steps.
-  Mortor1AccumulatedSteps:
-    &lt;&lt;: *motorsaccumulatedsteps
-    address: 92
-    description: Contains the accumulated number of steps of motor 1. Write a value to set the current number of accumulated steps.
-  Mortor2AccumulatedSteps:
-    &lt;&lt;: *motorsaccumulatedsteps
-    address: 93
-    description: Contains the accumulated number of steps of motor 2. Write a value to set the current number of accumulated steps.
-  Mortor3AccumulatedSteps:
-    &lt;&lt;: *motorsaccumulatedsteps
-    address: 94
-    description: Contains the accumulated number of steps of motor 3. Write a value to set the current number of accumulated steps.
-
-  MaxPosition:
-    address: 95
-    type: S32
-    length: 4
-    access: Write
-    description: Defines the limit of the accumulated steps for the positive movement of all motors. The device will not let the motors move further than this value. A value equal to 0 will disable the limits.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Defines the limit of the accumulated steps for the positive movement of motor 0. The device will not let the motor move further than this value.
-      Motor1:
-        offset: 1
-        description: Defines the limit of the accumulated steps for the positive movement of motor 1. The device will not let the motor move further than this value.
-      Motor2:
-        offset: 2
-        description: Defines the limit of the accumulated steps for the positive movement of motor 2. The device will not let the motor move further than this value.
-      Motor3:
-        offset: 3
-        description: Defines the limit of the accumulated steps for the positive movement of motor 3. The device will not let the motor move further than this value.
-
-  Motor0MaxPosition: &amp;motorsmaxsteps
-    address: 96
-    type: S32
-    access: Write
-    description: Specifies the limit of the accumulated steps for the positive movement of motor 0. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor1MaxPosition:
-    &lt;&lt;: *motorsmaxsteps
-    address: 97
-    description: Specifies the limit of the accumulated steps for the positive movement of motor 1. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor2MaxPosition:
-    &lt;&lt;: *motorsmaxsteps
-    address: 98
-    description: Specifies the limit of the accumulated steps for the positive movement of motor 2. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor3MaxPosition:
-    &lt;&lt;: *motorsmaxsteps
-    address: 99
-    description: Specifies the limit of the accumulated steps for the positive movement of motor 3. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-
-  MinPosition:
-    address: 100
-    type: S32
-    length: 4
-    access: Write
-    description: Defines the limit of the accumulated steps for the negative movement of all motors. The device will not let the motors move further than this value. A value equal to 0 will disable the limits.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Defines the limit of the accumulated steps for the negative movement of motor 0. The device will not let the motor move further than this value.
-      Motor1:
-        offset: 1
-        description: Defines the limit of the accumulated steps for the negative movement of motor 1. The device will not let the motor move further than this value.
-      Motor2:
-        offset: 2
-        description: Defines the limit of the accumulated steps for the negative movement of motor 2. The device will not let the motor move further than this value.
-      Motor3:
-        offset: 3
-        description: Defines the limit of the accumulated steps for the negative movement of motor 3. The device will not let the motor move further than this value.
-
-  Motor0MinPosition: &amp;motorsminsteps
-    address: 101
-    type: S32
-    access: Write
-    description: Specifies the limit of the accumulated steps for the negative movement of motor 0. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor1MinPosition:
-    &lt;&lt;: *motorsminsteps
-    address: 102
-    description: Specifies the limit of the accumulated steps for the negative movement of motor 1. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor2MinPosition:
-    &lt;&lt;: *motorsminsteps
-    address: 103
-    description: Specifies the limit of the accumulated steps for the negative movement of motor 2. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-  Motor3MinPosition:
-    &lt;&lt;: *motorsminsteps
-    address: 104
-    description: Specifies the limit of the accumulated steps for the negative movement of motor 3. The device will not let the motor move further than this value. A value equal to 0 disables the feature.
-
-  StepRelative:
-    address: 105
-    type: S32
-    length: 4
-    access: Write
-    description: Starts the movement of all motors with the step interval defined by this array. The value's signal defines the direction.
-    payloadSpec:
-      Motor0:
-        offset: 0
-        description: Starts the movement of motor 0 with the step interval defined by this register. The value's signal defines the direction.
-      Motor1:
-        offset: 1
-        description: Starts the movement of motor 1 with the step interval defined by this register. The value's signal defines the direction.
-      Motor2:
-        offset: 2
-        description: Starts the movement of motor 2 with the step interval defined by this register. The value's signal defines the direction.
-      Motor3:
-        offset: 3
-        description: Starts the movement of motor 3 with the step interval defined by this register. The value's signal defines the direction.
-
-  Motor0StepRelative: &amp;immediatesteps
-    address: 106
-    type: S32
-    access: Write
-    description: Starts the movement of motor 0 with the step interval defined by this register, disregarding the acceleration protocol. The sign of the value specifies the direction.
-  Motor1StepRelative:
-    &lt;&lt;: *immediatesteps
-    address: 107
-    description: Starts the movement of motor 1 with the step interval defined by this register, disregarding the acceleration protocol. The sign of the value specifies the direction.
-  Motor2StepRelative:
-    &lt;&lt;: *immediatesteps
-    address: 108
-    description: Starts the movement of motor 2 with the step interval defined by this register, disregarding the acceleration protocol. The sign of the value specifies the direction.
-  Motor3StepRelative:
-    &lt;&lt;: *immediatesteps
-    address: 109
-    description: Starts the movement of motor 3 with the step interval defined by this register, disregarding the acceleration protocol. The sign of the value specifies the direction.
-
-  ##################################
-  # Actions
-  ##################################
-  StopMotors:
-    address: 110
-    type: U8
-    access: Write
-    maskType: StepperMotors
-    description: Stops the motors selected in the bit-mask immediately.
-  ResetMotors:
-    address: 111
-    type: U8
-    access: Write
-    visibility: private
-    maskType: StepperMotors
-    description: Resets the internal motor driver which also clears any eventual error (not implemented).
-  ResetEncoders:
-    address: 112
-    type: U8
-    access: Write
-    maskType: QuadratureEncoders
-    description: Resets the encoder.
-
-  ##################################
-  # Reserved
-  ##################################
-  Reserved0: &amp;reserved
-    address: 113
-    type: U8
-    access: Write
-    visibility: private
-    description: Contains the CFG configuration pins of the TMC2210 driver that controls motor 0.
-  Reserved1:
-    &lt;&lt;: *reserved
-    address: 114
-    description: Contains the CFG configuration pins of the TMC2210 driver that controls motor 1.
-  Reserved2:
-    &lt;&lt;: *reserved
-    address: 115
-    description: Contains the CFG configuration pins of the TMC2210 driver that controls motor 2.
-  Reserved3:
-    &lt;&lt;: *reserved
-    address: 116
-    description: Contains the CFG configuration pins of the TMC2210 driver that controls motor 3.
-  Reserved4:
-    &lt;&lt;: *reserved
-    address: 117
-    visibility: private
-    description: Contains the raw data of the digital potentiometer that controls current limit of motor 0.
-  Reserved5:
-    &lt;&lt;: *reserved
-    address: 118
-    visibility: private
-    description: Contains the raw data of the digital potentiometer that controls current limit of motor 1.
-  Reserved6:
-    &lt;&lt;: *reserved
-    address: 119
-    visibility: private
-    description: Contains the raw data of the digital potentiometer that controls current limit of motor 2.
-  Reserved7:
-    &lt;&lt;: *reserved
-    address: 120
-    visibility: private
-    description: Contains the raw data of the digital potentiometer that controls current limit of motor 3.
-
-  ##################################
-  # Reserved block
-  ##################################
-  Reserved8: &amp;reserved_unused
-    address: 121
-    visibility: private
-    type: U8
-    access: Read
-    description: Reserved register.
-  Reserved9:
-    &lt;&lt;: *reserved_unused
-    address: 122
-  Reserved10:
-    &lt;&lt;: *reserved_unused
-    address: 123
-  Reserved11:
-    &lt;&lt;: *reserved_unused
-    address: 124
-  Reserved12:
-    &lt;&lt;: *reserved_unused
-    address: 125
-  Reserved13:
-    &lt;&lt;: *reserved_unused
-    address: 126
-  Reserved14:
-    &lt;&lt;: *reserved_unused
-    address: 127
-  Reserved15:
-    &lt;&lt;: *reserved_unused
-    address: 128
-  Reserved16:
-    &lt;&lt;: *reserved_unused
-    address: 129
-
-  ##################################
-  # Quick movement
-  ##################################
-  TriggerQuickMovement:
-    address: 130
-    type: U8
-    access: Write
-    maskType: StepperMotors
-    description: Triggers the quick movement in the correspondent motor with the currently configured settings.
-  Motor1QuickMovementPulseDistance: &amp;quickmovement_pulsedistance
-    address: 131
-    type: Float
-    access: Write
-    description: Sets the single pulse distance for a quick movement, in millimeters, for the Motor 1.
-  Motor2QuickMovementPulseDistance:
-    &lt;&lt;: *quickmovement_pulsedistance
-    address: 132
-    description: Sets the single pulse distance for a quick movement, in millimeters, for the Motor 2.
-  Motor1QuickMovementNominalSpeed: &amp;quickmovement_nominalspeed
-    address: 133
-    type: Float
-    access: Write
-    description: Sets the target speed for a quick movement, in millimeters per second, for the Motor 1.
-  Motor2QuickMovementNominalSpeed:
-    &lt;&lt;: *quickmovement_nominalspeed
-    address: 134
-    description: Sets the target speed for a quick movement, in millimeters per second, for the Motor 2.
-  Motor1QuickMovementInitialSpeed: &amp;quickmovement_initialspeed
-    address: 135
-    type: Float
-    access: Write
-    description: Sets the initial speed for a quick movement, in millimeters per second, for the Motor 1.
-  Motor2QuickMovementInitialSpeed:
-    &lt;&lt;: *quickmovement_initialspeed
-    address: 136
-    description: Sets the initial speed for a quick movement, in millimeters per second, for the Motor 2.
-  Motor1QuickMovementAcceleration: &amp;quickmovement_acceleration
-    address: 137
-    type: Float
-    access: Write
-    description: Sets the acceleration for a quick movement, in millimeters per second^2, for the Motor 1.
-  Motor2QuickMovementAcceleration:
-    &lt;&lt;: *quickmovement_acceleration
-    address: 138
-    description: Sets the acceleration for a quick movement, in millimeters per second^2, for the Motor 2.
-  Motor1QuickMovementDistance: &amp;quickmovement_distance
-    address: 139
-    type: Float
-    access: Write
-    description: Sets the travel distance of a quick movement, in millimeters, for the Motor 1.
-  Motor2QuickMovementDistance:
-    &lt;&lt;: *quickmovement_distance
-    address: 140
-    description: Sets the travel distance of a quick movement, in millimeters, for the Motor 1.
-
-##################################
-# Bit masks
-##################################
-bitMasks:
-  StepperMotors:
-    description: Specifies the index of each motor.
-    bits:
-      Motor0: 0x01
-      Motor1: 0x02
-      Motor2: 0x04
-      Motor3: 0x08
-  QuadratureEncoders:
-    description: Specifies the index of each motor.
-    bits:
-      Encoder0: 0x01
-      Encoder1: 0x02
-      Encoder2: 0x04
-  DigitalInputs:
-    description: Specifies the available digital input lines.
-    bits:
-      Input0: 0x1
-      Input1: 0x2
-      Input2: 0x4
-      Input3: 0x8
-  DigitalInputStates:
-    description: Specifies the state of the port and digital input line that changed.
-    bits:
-      Input0: 0x1
-      Input1: 0x2
-      Input2: 0x4
-      Input3: 0x8
-      Input0Changed: 0x10
-      Input1Changed: 0x20
-      Input2Changed: 0x40
-      Input3Changed: 0x80
-##################################
-# Group masks
-##################################
-groupMasks:
-  EncoderModeConfig:
-    description: Specifies the type of reading made from the quadrature QuadratureEncoders.
-    values:
-      Position: 0
-      Displacement: 1
-  EncoderSamplingRateConfig:
-    description: Specifies the rate of the events from the quadrature QuadratureEncoders.
-    values:
-      Rate100Hz: 0
-      Rate200Hz: 1
-      Rate250Hz: 2
-      Rate500Hz: 3
-  MotorOperationMode:
-    description: Specifies the motor operation mode.
-    values:
-      QuietMode: 0
-      DynamicMovements: 1
-  MicrostepResolution:
-    description: Specifies the microstep resolution for each step pulse.
-    values:
-      Microstep8: 0
-      Microstep16: 1
-      Microstep32: 2
-      Microstep64: 3
-  HoldCurrentReduction:
-    description: Specifies the hold current reduction.
-    values:
-      ReductionTo50Percent: 0
-      ReductionTo25Percent: 1
-      ReductionTo12Percent: 2
-      NoReduction: 3
-  InputOpModeConfig:
-    description: Specifies the inputs operation mode.
-    values:
-      EventOnly: 0x0
-      StopMotor0OnRising: 0x10
-      StopMotor1OnRising: 0x11
-      StopMotor2OnRising: 0x12
-      StopMotor3OnRising: 0x13
-      StopMotor0OnFalling: 0x20
-      StopMotor1OnFalling: 0x21
-      StopMotor2OnFalling: 0x22
-      StopMotor3OnFalling: 0x23
-  TriggerConfig:
-    description: Specifies the input trigger configuration.
-    values:
-      FallingEdge: 0
-      RisingEdge: 1
-  InterlockEnabledConfig:
-    description: Specifies the external connector state that enables the device.
-    values:
-      Closed: 0
-      Open: 1
-  AccumulatedStepsSamplingRateConfig:
-    description: Specifies the rate of the accumulated steps events.
-    values:
-      Disabled: 0
-      Rate10Hz: 1
-      Rate50Hz: 2
-      Rate100Hz: 3
-  DeviceStateMode:
-    description: Specifies the current state of the device.
-    values:
-      Disabled: 0
-      Enabled: 1</DeviceMetadata>
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>HarpCommands/StepperDriver</DeviceName>
                         </Expression>
@@ -3749,626 +369,9 @@ groupMasks:
                           <Combinator xsi:type="rx:WithLatestFrom" />
                         </Expression>
                         <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p7:ModifyMessage">
-                            <p7:Address xsi:nil="true" />
-                            <p7:MessageTypeModified xsi:nil="true" />
-                          </Combinator>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>Modality</Name>
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="Modality" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p3:GetMetadata" />
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="DeviceMetadata" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: AnalogInput
-whoAmI: 1236
-firmwareVersion: "1.2"
-hardwareTargets: "1.0"
-registers:
-  AcquisitionState:
-    address: 32
-    access: Write
-    type: U8
-    maskType: EnableFlag
-    description: Enables the data acquisition.
-  AnalogData:
-    address: 33
-    type: S16
-    length: 4
-    access: Event
-    description: Value from a single read of all ADC channels.
-    payloadSpec:
-      Channel0:
-        offset: 0
-      Channel1:
-        offset: 1
-      Channel2:
-        offset: 2
-      Channel3:
-        offset: 3
-  DigitalInputState:
-    address: 34
-    access: Event
-    type: U8
-    maskType: DigitalInputs
-    description: State of the digital input pin 0.
-  Reserved0: &amp;ReservedReg
-    address: 35
-    access: Read
-    visibility: private
-    type: U8
-    description: Reserved
-  Reserved1:
-    &lt;&lt;: *ReservedReg
-    address: 36
-  RangeAndFilter:
-    address: 37
-    access: Write
-    type: U8
-    maskType: RangeAndFilterConfig
-    description: Sets the range and LowPass filter cutoff of the ADC.
-  SamplingRate:
-    address: 38
-    access: Write
-    type: U8
-    maskType: SamplingRateMode
-    description: Sets the sampling frequency of the ADC.
-  DI0Trigger:
-    address: 39
-    access: Write
-    type: U8
-    maskType: TriggerConfig
-    description: Configuration of the digital input pin 0.
-  DO0Sync:
-    address: 40
-    access: Write
-    type: U8
-    maskType: SyncConfig
-    description: Configuration of the digital output pin 0.
-  DO0PulseWidth:
-    address: 41
-    access: Write
-    type: U8
-    minValue: 1
-    maxValue: 250
-    description: Pulse duration (ms) for the digital output pin 0. The pulse will only be emitted when DO0Sync == Pulse.
-  DigitalOutputSet: &amp;output
-    address: 42
-    type: U8
-    access: Write
-    maskType: DigitalOutputs
-    description: Set the specified digital output lines.
-  DigitalOutputClear:
-    &lt;&lt;: *output
-    address: 43
-    description: Clear the specified digital output lines.
-  DigitalOutputToggle:
-    &lt;&lt;: *output
-    address: 44
-    description: Toggle the specified digital output lines
-  DigitalOutputState:
-    &lt;&lt;: *output
-    address: 45
-    access: [Write, Event]
-    description: Write the state of all digital output lines. An event will be emitted when the value of any pin was changed by a threshold event.
-  Reserved2:
-    &lt;&lt;: *ReservedReg
-    address: 46
-  Reserved3:
-    &lt;&lt;: *ReservedReg
-    address: 47
-  SyncOutput:
-    address: 48
-    access: Write
-    type: U8
-    maskType: StartSyncOutputTarget
-    description: Digital output that will be set when acquisition starts.
-  Reserved4:
-    &lt;&lt;: *ReservedReg
-    address: 49
-  Reserved5:
-    &lt;&lt;: *ReservedReg
-    address: 50
-  Reserved6:
-    &lt;&lt;: *ReservedReg
-    address: 51
-  Reserved7:
-    &lt;&lt;: *ReservedReg
-    address: 52
-  Reserved8:
-    &lt;&lt;: *ReservedReg
-    address: 53
-  Reserved9:
-    &lt;&lt;: *ReservedReg
-    address: 54
-  Reserved10:
-    &lt;&lt;: *ReservedReg
-    address: 55
-  Reserved11:
-    &lt;&lt;: *ReservedReg
-    address: 56
-  Reserved12:
-    &lt;&lt;: *ReservedReg
-    address: 57
-  DO0TargetChannel: &amp;targetchannel
-    address: 58
-    access: Write
-    type: U8
-    maskType: AdcChannel
-    description: Target ADC channel that will be used to trigger a threshold event on DO0 pin.
-  DO1TargetChannel:
-    &lt;&lt;: *targetchannel
-    address: 59
-    description: Target ADC channel that will be used to trigger a threshold event on DO1 pin.
-  DO2TargetChannel:
-    &lt;&lt;: *targetchannel
-    address: 60
-    description: Target ADC channel that will be used to trigger a threshold event on DO2 pin.
-  DO3TargetChannel:
-    &lt;&lt;: *targetchannel
-    address: 61
-    description: Target ADC channel that will be used to trigger a threshold event on DO3 pin.
-  Reserved13:
-    &lt;&lt;: *ReservedReg
-    address: 62
-  Reserved14:
-    &lt;&lt;: *ReservedReg
-    address: 63
-  Reserved15:
-    &lt;&lt;: *ReservedReg
-    address: 64
-  Reserved16:
-    &lt;&lt;: *ReservedReg
-    address: 65
-  DO0Threshold: &amp;thresholdvalue
-    address: 66
-    access: Write
-    type: S16
-    description: Value used to threshold an ADC read, and trigger DO0 pin.
-  DO1Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 67
-    description: Value used to threshold an ADC read, and trigger DO1 pin.
-  DO2Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 68
-    description: Value used to threshold an ADC read, and trigger DO2 pin.
-  DO3Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 69
-    description: Value used to threshold an ADC read, and trigger DO3 pin.
-  Reserved17:
-    &lt;&lt;: *ReservedReg
-    address: 70
-  Reserved18:
-    &lt;&lt;: *ReservedReg
-    address: 71
-  Reserved19:
-    &lt;&lt;: *ReservedReg
-    address: 72
-  Reserved20:
-    &lt;&lt;: *ReservedReg
-    address: 73
-  DO0TimeAboveThreshold: &amp;bufferedthreshold
-    address: 74
-    access: Write
-    type: U16
-    defaultValue: 0
-    description: Time (ms) above threshold value that is required to trigger a DO0 pin event.
-  DO1TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 75
-    description: Time (ms) above threshold value that is required to trigger a DO1 pin event.
-  DO2TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 76
-    description: Time (ms) above threshold value that is required to trigger a DO2 pin event.
-  DO3TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 77
-    description: Time (ms) above threshold value that is required to trigger a DO3 pin event.
-  Reserved21:
-    &lt;&lt;: *ReservedReg
-    address: 78
-  Reserved22:
-    &lt;&lt;: *ReservedReg
-    address: 79
-  Reserved23:
-    &lt;&lt;: *ReservedReg
-    address: 80
-  Reserved24:
-    &lt;&lt;: *ReservedReg
-    address: 81
-  DO0TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 82
-    description: Time (ms) below threshold value that is required to trigger a DO0 pin event.
-  DO1TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 83
-    description: Time (ms) below threshold value that is required to trigger a DO1 pin event.
-  DO2TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 84
-    description: Time (ms) below threshold value that is required to trigger a DO2 pin event.
-  DO3TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 85
-    description: Time (ms) below threshold value that is required to trigger a DO3 pin event.
-  Reserved25:
-    &lt;&lt;: *ReservedReg
-    address: 86
-  Reserved26:
-    &lt;&lt;: *ReservedReg
-    address: 87
-  Reserved27:
-    &lt;&lt;: *ReservedReg
-    address: 88
-  Reserved28:
-    &lt;&lt;: *ReservedReg
-    address: 89
-  Reserved29:
-    &lt;&lt;: *ReservedReg
-    address: 90
-bitMasks:
-  DigitalInputs:
-    description: Available digital input lines.
-    bits:
-      DI0: 0x1
-  DigitalOutputs:
-    description: Specifies the state of port digital output lines.
-    bits:
-      DO0: 0x1
-      DO1: 0x2
-      DO2: 0x4
-      DO3: 0x8
-      DO0Changed: 0x10
-      DO1Changed: 0x20
-      DO2Changed: 0x40
-      DO4Changed: 0x80
-groupMasks:
-  RangeAndFilterConfig:
-    description: Available settings to set the range (Volt) and LowPass filter cutoff (Hz) of the ADC.
-    values:
-      Range5VLowPass1500Hz: 0x06
-      Range5VLowPass3000Hz: 0x05
-      Range5VLowPass6000Hz: 0x04
-      Range5VLowPass10300Hz: 0x03
-      Range5VLowPass13700Hz: 0x02
-      Range5VLowPass15000Hz: 0x01
-      Range10VLowPass1500Hz: 0x16
-      Range10VLowPass3000Hz: 0x15
-      Range10VLowPass6000Hz: 0x14
-      Range10VLowPass11900Hz: 0x13
-      Range10VLowPass18500Hz: 0x12
-      Range10VLowPass22000Hz: 0x11
-  SamplingRateMode:
-    description: Available sampling frequency settings of the ADC.
-    values:
-      SamplingRate1000Hz: 0x00
-      SamplingRate2000Hz: 0x01
-  TriggerConfig:
-    description: Available configurations for when using DI0 as an acquisition trigger.
-    values:
-      None: 0
-      StartOnRisingEdge: 1
-      StartOnFallingEdge: 2
-      SampleOnRisingEdge: 3
-  SyncConfig:
-    description: Available configurations when using DO0 pin to report firmware events.
-    values:
-      None: 0
-      Heartbeat: 1
-      Pulse: 2
-  StartSyncOutputTarget:
-    description: Available digital output pins that are able to be triggered on acquisition start.
-    values:
-      None: 0
-      DO0: 1
-      DO1: 2
-      DO2: 3
-      DO3: 4
-  AdcChannel:
-    description: Available target analog channels to be targeted for threshold events.
-    values:
-      Channel0: 0
-      Channel1: 1
-      Channel2: 2
-      Channel3: 3
-      None: 8
-</DeviceMetadata>
-                          <Modality>Behavior</Modality>
-                          <DeviceName>HarpCommands/AnalogInput</DeviceName>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpLickometerCommands</Name>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpTimestampSource</Name>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="rx:WithLatestFrom" />
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p7:ModifyMessage">
-                            <p7:Address xsi:nil="true" />
-                            <p7:MessageTypeModified>Write</p7:MessageTypeModified>
-                          </Combinator>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>Modality</Name>
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="Modality" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p2:GetMetadata" />
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="DeviceMetadata" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://raw.githubusercontent.com/harp-tech/reflex-generator/main/schema/device.json
-device: LicketySplit
-whoAmI: 1400
-firmwareVersion: "0.0"
-hardwareTargets: "0.5"
-registers:
-  LickState:
-    address: 32
-    type: U8
-    access: Event
-    maskType: LickChannels
-    description: Emits an event when the state of any lick detector changes. Value will be High when lick detected and Low otherwise.
-  Channel0TriggerThreshold: &amp;thresholdreg
-    address: 33
-    type: U8
-    access: Write
-    description: Threshold value to detect the lick. Values below this threshold will be considered a detected lick.
-  Channel0UntriggerThreshold:
-    &lt;&lt;: *thresholdreg
-    address: 34
-    description: Threshold value to release the lick detection state. Values above this threshold will untrigger a detected lick.
-bitMasks:
-  LickChannels:
-    description: The channel of the lick detector.
-    bits:
-      Channel0: 0x1
-      Channel1: 0x2
-</DeviceMetadata>
-                          <Modality>Behavior</Modality>
-                          <DeviceName>HarpCommands/Lickometer</DeviceName>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpWhiteRabbitCommands</Name>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpTimestampSource</Name>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="rx:WithLatestFrom" />
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p7:ModifyMessage">
-                            <p7:Address xsi:nil="true" />
-                            <p7:MessageTypeModified>Write</p7:MessageTypeModified>
-                          </Combinator>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>Modality</Name>
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="Modality" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p5:GetMetadata" />
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="DeviceMetadata" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: WhiteRabbit
-whoAmI: 1404
-firmwareVersion: "0.1"
-hardwareTargets: "0.1"
-registers:
-  ConnectedDevices:
-    address: 32
-    type: U16
-    access: Event
-    maskType: ClockOutChannels
-    description: "The currently connected output channels. An event will be generated when any of the channels are connected or disconnected."
-  Counter:
-    address: 33
-    type: U32
-    access: [Write, Event]
-    description: "The counter value. This value is incremented at the frequency specified by CounterFrequencyHz. Write to force a counter value."
-  CounterFrequencyHz:
-    address: 34
-    type: U16
-    access: Write
-    maxValue: 500
-    defaultValue: 0
-    minValue: 0
-    description: "The frequency at which the counter is incremented. A value of 0 disables the counter."
-  AuxPortMode:
-    address: 35
-    type: U8
-    access: Write
-    description: "The function of the auxiliary port."
-    maskType: AuxPortModeConfig
-  AuxPortBaudRate:
-    address: 36
-    type: U32
-    access: Write
-    defaultValue: 1000
-    minValue: 40
-    maxValue: 1000000
-    description: "The baud rate, in bps, of the auxiliary port when in HarpClock mode."
-
-bitMasks:
-  ClockOutChannels:
-    description: "Clock output channels"
-    bits:
-      None: 0x00
-      Channel0: 0x01
-      Channel1: 0x02
-      Channel2: 0x04
-      Channel3: 0x08
-      Channel4: 0x10
-      Channel5: 0x20
-      Channel6: 0x40
-      Channel7: 0x80
-      Channel8: 0x100
-      Channel9: 0x200
-      Channel10: 0x400
-      Channel11: 0x800
-      Channel12: 0x1000
-      Channel13: 0x2000
-      Channel14: 0x4000
-      Channel15: 0x8000
-groupMasks:
-  AuxPortModeConfig:
-    description: "Auxiliary port available configuration"
-    values:
-      Disabled: 0x0
-      HarpClock: 0x1
-      PPS: 0x2</DeviceMetadata>
-                          <Modality>Behavior</Modality>
-                          <DeviceName>HarpCommands/ClockGenerator</DeviceName>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpEnvironmentSensorCommands</Name>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpTimestampSource</Name>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="rx:WithLatestFrom" />
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p7:ModifyMessage">
-                            <p7:Address xsi:nil="true" />
-                            <p7:MessageTypeModified>Write</p7:MessageTypeModified>
-                          </Combinator>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>Modality</Name>
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="Modality" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p6:GetMetadata" />
-                        </Expression>
-                        <Expression xsi:type="PropertyMapping">
-                          <PropertyMappings>
-                            <Property Name="DeviceMetadata" />
-                          </PropertyMappings>
-                        </Expression>
-                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: EnvironmentSensor
-whoAmI: 1405
-firmwareVersion: "0.1"
-hardwareTargets: "0.1"
-registers:
-  Pressure:
-    access: Read
-    address: 32
-    type: U32
-    description: Pressure, in Pa
-  Temperature:
-    access: Read
-    address: 33
-    type: Float
-    description: Temperature in degrees C
-  Humidity:
-    access: Read
-    address: 34
-    type: Float
-    description: Humidity, in %RH
-  SensorData:
-    access: Event
-    address: 35
-    type: Float
-    description: A periodic event will be emitted with aggregated data from all sensors.
-    length: 3
-    payloadSpec:
-      Pressure:
-        offset: 0
-        description: Pressure, in Pa
-      Temperature:
-        offset: 1
-        description: Temperature in degrees C
-      Humidity:
-        offset: 2
-        description: Humidity, in %RH
-  EnableEvents:
-    access: Write
-    address: 36
-    type: U8
-    maskType: Events
-    description: Enables (~2Hz) or disables the SensorData events
-  TemperatureOffsetC:
-    access: Read
-    address: 37
-    type: Float
-    description: Fixed experimentally-determined calibration offset added to nominal temperature sensor reading in degrees C
-bitMasks:
-  Events:
-    bits:
-      Disable: 0x0
-      SensorData: 0x1
-    description: Available events on the device
-</DeviceMetadata>
-                          <Modality>Behavior</Modality>
-                          <DeviceName>HarpCommands/EnvironmentSensor</DeviceName>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpLoadCellsEvents</Name>
-                        </Expression>
-                        <Expression xsi:type="SubscribeSubject">
-                          <Name>HarpTimestampSource</Name>
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="rx:WithLatestFrom" />
-                        </Expression>
-                        <Expression xsi:type="Combinator">
-                          <Combinator xsi:type="p7:ModifyMessage">
-                            <p7:Address xsi:nil="true" />
-                            <p7:MessageTypeModified xsi:nil="true" />
+                          <Combinator xsi:type="p8:ModifyMessage">
+                            <p8:Address xsi:nil="true" />
+                            <p8:MessageTypeModified xsi:nil="true" />
                           </Combinator>
                         </Expression>
                         <Expression xsi:type="SubscribeSubject">
@@ -4388,350 +391,173 @@ bitMasks:
                           </PropertyMappings>
                         </Expression>
                         <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
-                          <DeviceMetadata>%YAML 1.1
----
-# yaml-language-server: $schema=https://harp-tech.org/draft-02/schema/device.json
-device: LoadCells
-whoAmI: 1232
-firmwareVersion: "1.1"
-hardwareTargets: "1.0"
-registers:
-  AcquisitionState:
-    address: 32
-    access: Write
-    type: U8
-    maskType: EnableFlag
-    description: Enables the data acquisition.
-  LoadCellData:
-    address: 33
-    type: S16
-    length: 8
-    access: Event
-    description: Value of single ADC read from all load cell channels.
-    payloadSpec:
-      Channel0:
-        offset: 0
-      Channel1:
-        offset: 1
-      Channel2:
-        offset: 2
-      Channel3:
-        offset: 3
-      Channel4:
-        offset: 4
-      Channel5:
-        offset: 5
-      Channel6:
-        offset: 6
-      Channel7:
-        offset: 7
-  DigitalInputState:
-    address: 34
-    access: Event
-    type: U8
-    maskType: DigitalInputs
-    description: Status of the digital input pin 0. An event will be emitted when DI0Trigger == None.
-  SyncOutputState:
-    address: 35
-    access: Event
-    type: U8
-    maskType: SyncOutputs
-    description: Status of the digital output pin 0. An periodic event will be emitted when DO0Sync == ToggleEachSecond.
-  BufferThresholdState:
-    address: 36
-    access: Read
-    visibility: private
-    type: U8
-    description: State of the buffer thresholds.
-  Reserved0: &amp;ReservedReg
-    address: 37
-    access: Read
-    visibility: private
-    type: U8
-    description: Reserved
-  Reserved1:
-    &lt;&lt;: *ReservedReg
-    address: 38
-  DI0Trigger:
-    address: 39
-    access: Write
-    type: U8
-    maskType: TriggerConfig
-    description: Configuration of the digital input pin 0.
-  DO0Sync:
-    address: 40
-    access: Write
-    type: U8
-    maskType: SyncConfig
-    description: Configuration of the digital output pin 0.
-  DO0PulseWidth:
-    address: 41
-    access: Write
-    type: U8
-    minValue: 1
-    maxValue: 255
-    description: Pulse duration (ms) for the digital output pin 0. The pulse will only be emitted when DO0Sync == Pulse.
-  DigitalOutputSet: &amp;output
-    address: 42
-    type: U16
-    access: Write
-    maskType: DigitalOutputs
-    description: Set the specified digital output lines.
-  DigitalOutputClear:
-    &lt;&lt;: *output
-    address: 43
-    description: Clear the specified digital output lines.
-  DigitalOutputToggle:
-    &lt;&lt;: *output
-    address: 44
-    description: Toggle the specified digital output lines
-  DigitalOutputState:
-    &lt;&lt;: *output
-    address: 45
-    access: [Write, Event]
-    description: Write the state of all digital output lines. An event will be emitted when the value of any pin was changed by a threshold event.
-  Reserved2:
-    &lt;&lt;: *ReservedReg
-    address: 46
-  Reserved3:
-    &lt;&lt;: *ReservedReg
-    address: 47
-  OffsetLoadCell0: &amp;offsetloadcell
-    address: 48
-    access: Write
-    type: S16
-    minValue: -255
-    maxValue: 255
-    defaultValue: 0
-    description: Offset value for Load Cell channel 0.
-  OffsetLoadCell1:
-    &lt;&lt;: *offsetloadcell
-    address: 49
-    description: Offset value for Load Cell channel 1.
-  OffsetLoadCell2:
-    &lt;&lt;: *offsetloadcell
-    address: 50
-    description: Offset value for Load Cell channel 2.
-  OffsetLoadCell3:
-    &lt;&lt;: *offsetloadcell
-    address: 51
-    description: Offset value for Load Cell channel 3.
-  OffsetLoadCell4:
-    &lt;&lt;: *offsetloadcell
-    address: 52
-    description: Offset value for Load Cell channel 4.
-  OffsetLoadCell5:
-    &lt;&lt;: *offsetloadcell
-    address: 53
-    description: Offset value for Load Cell channel 5.
-  OffsetLoadCell6:
-    &lt;&lt;: *offsetloadcell
-    address: 54
-    description: Offset value for Load Cell channel 6.
-  OffsetLoadCell7:
-    &lt;&lt;: *offsetloadcell
-    address: 55
-    description: Offset value for Load Cell channel 7.
-  Reserved4:
-    &lt;&lt;: *ReservedReg
-    address: 56
-  Reserved5:
-    &lt;&lt;: *ReservedReg
-    address: 57
-  DO1TargetLoadCell: &amp;targetloadcell
-    address: 58
-    access: Write
-    type: U8
-    maskType: LoadCellChannel
-    description: Target Load Cell that will be used to trigger a threshold event on DO1 pin.
-  DO2TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 59
-    description: Target Load Cell that will be used to trigger a threshold event on DO2 pin.
-  DO3TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 60
-    description: Target Load Cell that will be used to trigger a threshold event on DO3 pin.
-  DO4TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 61
-    description: Target Load Cell that will be used to trigger a threshold event on DO4 pin.
-  DO5TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 62
-    description: Target Load Cell that will be used to trigger a threshold event on DO5 pin.
-  DO6TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 63
-    description: Target Load Cell that will be used to trigger a threshold event on DO6 pin.
-  DO7TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 64
-    description: Target Load Cell that will be used to trigger a threshold event on DO7 pin.
-  DO8TargetLoadCell:
-    &lt;&lt;: *targetloadcell
-    address: 65
-    description: Target Load Cell that will be used to trigger a threshold event on DO8 pin.
-  DO1Threshold: &amp;thresholdvalue
-    address: 66
-    access: Write
-    type: S16
-    description: Value used to threshold a Load Cell read, and trigger DO1 pin.
-  DO2Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 67
-    description: Value used to threshold a Load Cell read, and trigger DO2 pin.
-  DO3Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 68
-    description: Value used to threshold a Load Cell read, and trigger DO3 pin.
-  DO4Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 69
-    description: Value used to threshold a Load Cell read, and trigger DO4 pin.
-  DO5Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 70
-    description: Value used to threshold a Load Cell read, and trigger DO5 pin.
-  DO6Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 71
-    description: Value used to threshold a Load Cell read, and trigger DO6 pin.
-  DO7Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 72
-    description: Value used to threshold a Load Cell read, and trigger DO7 pin.
-  DO8Threshold:
-    &lt;&lt;: *thresholdvalue
-    address: 73
-    description: Value used to threshold a Load Cell read, and trigger DO8 pin.
-  DO1TimeAboveThreshold: &amp;bufferedthreshold
-    address: 74
-    access: Write
-    type: U16
-    defaultValue: 0
-    description: Time (ms) above threshold value that is required to trigger a DO1 pin event.
-  DO2TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 75
-    description: Time (ms) above threshold value that is required to trigger a DO2 pin event.
-  DO3TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 76
-    description: Time (ms) above threshold value that is required to trigger a DO3 pin event.
-  DO4TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 77
-    description: Time (ms) above threshold value that is required to trigger a DO4 pin event.
-  DO5TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 78
-    description: Time (ms) above threshold value that is required to trigger a DO5 pin event.
-  DO6TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 79
-    description: Time (ms) above threshold value that is required to trigger a DO6 pin event.
-  DO7TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 80
-    description: Time (ms) above threshold value that is required to trigger a DO7 pin event.
-  DO8TimeAboveThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 81
-    description: Time (ms) above threshold value that is required to trigger a DO8 pin event.
-  DO1TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 82
-    description: Time (ms) below threshold value that is required to trigger a DO1 pin event.
-  DO2TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 83
-    description: Time (ms) below threshold value that is required to trigger a DO2 pin event.
-  DO3TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 84
-    description: Time (ms) below threshold value that is required to trigger a DO3 pin event.
-  DO4TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 85
-    description: Time (ms) below threshold value that is required to trigger a DO4 pin event.
-  DO5TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 86
-    description: Time (ms) below threshold value that is required to trigger a DO5 pin event.
-  DO6TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 87
-    description: Time (ms) below threshold value that is required to trigger a DO6 pin event.
-  DO7TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 88
-    description: Time (ms) below threshold value that is required to trigger a DO7 pin event.
-  DO8TimeBelowThreshold:
-    &lt;&lt;: *bufferedthreshold
-    address: 89
-    description: Time (ms) below threshold value that is required to trigger a DO8 pin event.
-  EnableEvents:
-    address: 90
-    access: Write
-    type: U8
-    maskType: LoadCellEvents
-    description: Specifies the active events in the device.
-bitMasks:
-  DigitalInputs:
-    description: Available digital input lines.
-    bits:
-      DI0: 0x1
-  SyncOutputs:
-    description: Specifies the state output synchronization lines.
-    bits:
-      DO0: 0x1
-  DigitalOutputs:
-    description: Specifies the state of port digital output lines.
-    bits:
-      DO1: 0x1
-      DO2: 0x2
-      DO3: 0x4
-      DO4: 0x8
-      DO5: 0x10
-      DO6: 0x20
-      DO7: 0x40
-      DO8: 0x80
-  LoadCellEvents:
-    description: The events that can be enabled/disabled.
-    bits:
-      LoadCellData: 0x1
-      DigitalInput: 0x2
-      SyncOutput: 0x4
-      Thresholds: 0x8
-groupMasks:
-  TriggerConfig:
-    description: Available configurations when using a digital input as an acquisition trigger.
-    values:
-      None: 0
-      RisingEdge: 1
-      FallingEdge: 2
-  SyncConfig:
-    description: Available configurations when using a digital output pin to report firmware events.
-    values:
-      None: 0
-      Heartbeat: 1
-      Pulse: 2
-  LoadCellChannel:
-    description: Available target load cells to be targeted on threshold events.
-    values:
-      Channel0: 0
-      Channel1: 1
-      Channel2: 2
-      Channel3: 3
-      Channel4: 4
-      Channel5: 5
-      Channel6: 6
-      Channel7: 7
-      None: 8
-</DeviceMetadata>
+                          <DeviceMetadata />
+                          <Modality>Behavior</Modality>
+                          <DeviceName>HarpCommands/AnalogInput</DeviceName>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>RigSchema</Name>
+                        </Expression>
+                        <Expression xsi:type="MemberSelector">
+                          <Selector>HarpAnalogInput</Selector>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.Core:FilterNotNull.bonsai" />
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:SubscribeWhen" />
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpLickometerCommands</Name>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpTimestampSource</Name>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:WithLatestFrom" />
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p8:ModifyMessage">
+                            <p8:Address xsi:nil="true" />
+                            <p8:MessageTypeModified>Write</p8:MessageTypeModified>
+                          </Combinator>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>Modality</Name>
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="Modality" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p2:GetMetadata" />
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="DeviceMetadata" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
+                          <DeviceMetadata />
+                          <Modality>Behavior</Modality>
+                          <DeviceName>HarpCommands/Lickometer</DeviceName>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpWhiteRabbitCommands</Name>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpTimestampSource</Name>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:WithLatestFrom" />
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p8:ModifyMessage">
+                            <p8:Address xsi:nil="true" />
+                            <p8:MessageTypeModified>Write</p8:MessageTypeModified>
+                          </Combinator>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>Modality</Name>
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="Modality" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p6:GetMetadata" />
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="DeviceMetadata" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
+                          <DeviceMetadata />
+                          <Modality>Behavior</Modality>
+                          <DeviceName>HarpCommands/ClockGenerator</DeviceName>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpEnvironmentSensorCommands</Name>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpTimestampSource</Name>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:WithLatestFrom" />
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p8:ModifyMessage">
+                            <p8:Address xsi:nil="true" />
+                            <p8:MessageTypeModified>Write</p8:MessageTypeModified>
+                          </Combinator>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>Modality</Name>
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="Modality" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p7:GetMetadata" />
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="DeviceMetadata" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
+                          <DeviceMetadata />
+                          <Modality>Behavior</Modality>
+                          <DeviceName>HarpCommands/EnvironmentSensor</DeviceName>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpLoadCellsEvents</Name>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>HarpTimestampSource</Name>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:WithLatestFrom" />
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p8:ModifyMessage">
+                            <p8:Address xsi:nil="true" />
+                            <p8:MessageTypeModified xsi:nil="true" />
+                          </Combinator>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>Modality</Name>
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="Modality" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="p5:GetMetadata" />
+                        </Expression>
+                        <Expression xsi:type="PropertyMapping">
+                          <PropertyMappings>
+                            <Property Name="DeviceMetadata" />
+                          </PropertyMappings>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.HarpUtils:LogHarpDeviceWithMetadata.bonsai">
+                          <DeviceMetadata />
                           <Modality>Behavior</Modality>
                           <DeviceName>HarpCommands/LoadCells</DeviceName>
+                        </Expression>
+                        <Expression xsi:type="SubscribeSubject">
+                          <Name>RigSchema</Name>
+                        </Expression>
+                        <Expression xsi:type="MemberSelector">
+                          <Selector>HarpLoadCells</Selector>
+                        </Expression>
+                        <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.Core:FilterNotNull.bonsai" />
+                        <Expression xsi:type="Combinator">
+                          <Combinator xsi:type="rx:SubscribeWhen" />
                         </Expression>
                       </Nodes>
                       <Edges>
@@ -4759,38 +585,46 @@ groupMasks:
                         <Edge From="23" To="26" Label="Source2" />
                         <Edge From="24" To="25" Label="Source1" />
                         <Edge From="25" To="26" Label="Source3" />
-                        <Edge From="27" To="29" Label="Source1" />
-                        <Edge From="28" To="29" Label="Source2" />
-                        <Edge From="29" To="30" Label="Source1" />
-                        <Edge From="30" To="35" Label="Source1" />
-                        <Edge From="31" To="32" Label="Source1" />
-                        <Edge From="32" To="35" Label="Source2" />
+                        <Edge From="26" To="30" Label="Source1" />
+                        <Edge From="27" To="28" Label="Source1" />
+                        <Edge From="28" To="29" Label="Source1" />
+                        <Edge From="29" To="30" Label="Source2" />
+                        <Edge From="31" To="33" Label="Source1" />
+                        <Edge From="32" To="33" Label="Source2" />
                         <Edge From="33" To="34" Label="Source1" />
-                        <Edge From="34" To="35" Label="Source3" />
-                        <Edge From="36" To="38" Label="Source1" />
-                        <Edge From="37" To="38" Label="Source2" />
-                        <Edge From="38" To="39" Label="Source1" />
-                        <Edge From="39" To="44" Label="Source1" />
-                        <Edge From="40" To="41" Label="Source1" />
-                        <Edge From="41" To="44" Label="Source2" />
+                        <Edge From="34" To="39" Label="Source1" />
+                        <Edge From="35" To="36" Label="Source1" />
+                        <Edge From="36" To="39" Label="Source2" />
+                        <Edge From="37" To="38" Label="Source1" />
+                        <Edge From="38" To="39" Label="Source3" />
+                        <Edge From="40" To="42" Label="Source1" />
+                        <Edge From="41" To="42" Label="Source2" />
                         <Edge From="42" To="43" Label="Source1" />
-                        <Edge From="43" To="44" Label="Source3" />
-                        <Edge From="45" To="47" Label="Source1" />
-                        <Edge From="46" To="47" Label="Source2" />
-                        <Edge From="47" To="48" Label="Source1" />
-                        <Edge From="48" To="53" Label="Source1" />
-                        <Edge From="49" To="50" Label="Source1" />
-                        <Edge From="50" To="53" Label="Source2" />
+                        <Edge From="43" To="48" Label="Source1" />
+                        <Edge From="44" To="45" Label="Source1" />
+                        <Edge From="45" To="48" Label="Source2" />
+                        <Edge From="46" To="47" Label="Source1" />
+                        <Edge From="47" To="48" Label="Source3" />
+                        <Edge From="49" To="51" Label="Source1" />
+                        <Edge From="50" To="51" Label="Source2" />
                         <Edge From="51" To="52" Label="Source1" />
-                        <Edge From="52" To="53" Label="Source3" />
-                        <Edge From="54" To="56" Label="Source1" />
-                        <Edge From="55" To="56" Label="Source2" />
-                        <Edge From="56" To="57" Label="Source1" />
-                        <Edge From="57" To="62" Label="Source1" />
-                        <Edge From="58" To="59" Label="Source1" />
-                        <Edge From="59" To="62" Label="Source2" />
+                        <Edge From="52" To="57" Label="Source1" />
+                        <Edge From="53" To="54" Label="Source1" />
+                        <Edge From="54" To="57" Label="Source2" />
+                        <Edge From="55" To="56" Label="Source1" />
+                        <Edge From="56" To="57" Label="Source3" />
+                        <Edge From="58" To="60" Label="Source1" />
+                        <Edge From="59" To="60" Label="Source2" />
                         <Edge From="60" To="61" Label="Source1" />
-                        <Edge From="61" To="62" Label="Source3" />
+                        <Edge From="61" To="66" Label="Source1" />
+                        <Edge From="62" To="63" Label="Source1" />
+                        <Edge From="63" To="66" Label="Source2" />
+                        <Edge From="64" To="65" Label="Source1" />
+                        <Edge From="65" To="66" Label="Source3" />
+                        <Edge From="66" To="70" Label="Source1" />
+                        <Edge From="67" To="68" Label="Source1" />
+                        <Edge From="68" To="69" Label="Source1" />
+                        <Edge From="69" To="70" Label="Source2" />
                       </Edges>
                     </Workflow>
                   </Expression>
@@ -4839,13 +673,27 @@ groupMasks:
                                 <Name>Repository</Name>
                               </Expression>
                               <Expression xsi:type="Combinator">
-                                <Combinator xsi:type="p8:IsRepositoryClean">
-                                  <p8:IgnoreUntracked>false</p8:IgnoreUntracked>
+                                <Combinator xsi:type="p9:IsRepositoryClean">
+                                  <p9:IgnoreUntracked>false</p9:IgnoreUntracked>
                                 </Combinator>
                               </Expression>
                               <Expression xsi:type="Combinator">
                                 <Combinator xsi:type="p1:CreateSoftwareEvent">
                                   <p1:EventName>RepositoryStatus</p1:EventName>
+                                </Combinator>
+                              </Expression>
+                              <Expression xsi:type="MulticastSubject">
+                                <Name>SoftwareEvents</Name>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Timestamp" />
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Timestamp.UtcDateTime</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="p1:CreateSoftwareEvent">
+                                  <p1:EventName>StartSessionTime</p1:EventName>
                                 </Combinator>
                               </Expression>
                               <Expression xsi:type="MulticastSubject">
@@ -4914,6 +762,20 @@ groupMasks:
                               <Expression xsi:type="MulticastSubject">
                                 <Name>SoftwareEvents</Name>
                               </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="rx:Timestamp" />
+                              </Expression>
+                              <Expression xsi:type="MemberSelector">
+                                <Selector>Timestamp.UtcDateTime</Selector>
+                              </Expression>
+                              <Expression xsi:type="Combinator">
+                                <Combinator xsi:type="p1:CreateSoftwareEvent">
+                                  <p1:EventName>EndSessionTime</p1:EventName>
+                                </Combinator>
+                              </Expression>
+                              <Expression xsi:type="MulticastSubject">
+                                <Name>SoftwareEvents</Name>
+                              </Expression>
                               <Expression xsi:type="SubscribeSubject">
                                 <Name>IsExperimentPaused</Name>
                               </Expression>
@@ -4930,20 +792,28 @@ groupMasks:
                               <Edge From="0" To="1" Label="Source1" />
                               <Edge From="1" To="2" Label="Source1" />
                               <Edge From="2" To="3" Label="Source1" />
+                              <Edge From="3" To="4" Label="Source1" />
                               <Edge From="4" To="5" Label="Source1" />
                               <Edge From="5" To="6" Label="Source1" />
-                              <Edge From="7" To="8" Label="Source1" />
+                              <Edge From="6" To="7" Label="Source1" />
                               <Edge From="8" To="9" Label="Source1" />
                               <Edge From="9" To="10" Label="Source1" />
                               <Edge From="11" To="12" Label="Source1" />
                               <Edge From="12" To="13" Label="Source1" />
-                              <Edge From="14" To="15" Label="Source1" />
+                              <Edge From="13" To="14" Label="Source1" />
                               <Edge From="15" To="16" Label="Source1" />
-                              <Edge From="17" To="18" Label="Source1" />
+                              <Edge From="16" To="17" Label="Source1" />
                               <Edge From="18" To="19" Label="Source1" />
                               <Edge From="19" To="20" Label="Source1" />
                               <Edge From="21" To="22" Label="Source1" />
                               <Edge From="22" To="23" Label="Source1" />
+                              <Edge From="23" To="24" Label="Source1" />
+                              <Edge From="24" To="25" Label="Source1" />
+                              <Edge From="25" To="26" Label="Source1" />
+                              <Edge From="26" To="27" Label="Source1" />
+                              <Edge From="27" To="28" Label="Source1" />
+                              <Edge From="29" To="30" Label="Source1" />
+                              <Edge From="30" To="31" Label="Source1" />
                             </Edges>
                           </Workflow>
                         </Expression>
@@ -5202,8 +1072,8 @@ groupMasks:
                                 </PropertyMappings>
                               </Expression>
                               <Expression xsi:type="Combinator">
-                                <Combinator xsi:type="p9:CopyFile">
-                                  <p9:Overwrite>false</p9:Overwrite>
+                                <Combinator xsi:type="p10:CopyFile">
+                                  <p10:Overwrite>false</p10:Overwrite>
                                 </Combinator>
                               </Expression>
                             </Nodes>
@@ -5292,8 +1162,8 @@ groupMasks:
                                 <Name>SubjectSchema</Name>
                               </Expression>
                               <Expression xsi:type="Combinator">
-                                <Combinator xsi:type="p10:SerializeToJson">
-                                  <p10:Formatting>None</p10:Formatting>
+                                <Combinator xsi:type="p11:SerializeToJson">
+                                  <p11:Formatting>None</p11:Formatting>
                                 </Combinator>
                               </Expression>
                               <Expression xsi:type="SubscribeSubject">
@@ -5322,8 +1192,8 @@ groupMasks:
                                 <Name>TaskLogicSchema</Name>
                               </Expression>
                               <Expression xsi:type="Combinator">
-                                <Combinator xsi:type="p10:SerializeToJson">
-                                  <p10:Formatting>None</p10:Formatting>
+                                <Combinator xsi:type="p11:SerializeToJson">
+                                  <p11:Formatting>None</p11:Formatting>
                                 </Combinator>
                               </Expression>
                               <Expression xsi:type="SubscribeSubject">
@@ -5352,8 +1222,8 @@ groupMasks:
                                 <Name>RigSchema</Name>
                               </Expression>
                               <Expression xsi:type="Combinator">
-                                <Combinator xsi:type="p10:SerializeToJson">
-                                  <p10:Formatting>None</p10:Formatting>
+                                <Combinator xsi:type="p11:SerializeToJson">
+                                  <p11:Formatting>None</p11:Formatting>
                                 </Combinator>
                               </Expression>
                               <Expression xsi:type="SubscribeSubject">
