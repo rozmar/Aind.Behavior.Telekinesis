@@ -2,9 +2,9 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
-import clabe.resource_monitor
 from aind_behavior_services.rig.aind_manipulator import ManipulatorPosition
 from aind_behavior_services.session import Session
+from clabe import resource_monitor, ui
 from clabe.apps import (
     AindBehaviorServicesBonsaiApp,
 )
@@ -37,9 +37,9 @@ async def telekinesis_experiment(launcher: Launcher) -> None:
 
     launcher.register_session(session, rig.data_directory)
 
-    clabe.resource_monitor.ResourceMonitor(
+    resource_monitor.ResourceMonitor(
         constrains=[
-            clabe.resource_monitor.available_storage_constraint_factory(rig.data_directory, 2e10),
+            resource_monitor.available_storage_constraint_factory(rig.data_directory, 2e10),
         ]
     ).run()
 
@@ -65,9 +65,12 @@ async def telekinesis_experiment(launcher: Launcher) -> None:
         manipulator_modifier.dump()
     except Exception as e:
         logger.error(f"Failed to update manipulator initial position: {e}")
+        launcher.frontend.notify(f"Failed to update manipulator position: {e}", ui.MessageLevel.WARNING)
 
     # Run data qc
-    if picker.ui_helper.prompt_yes_no_question("Would you like to generate a qc report?"):
+    if picker.frontend.prompt_confirm(
+        ui.ConfirmRequest(label="Would you like to generate a qc report?", default=False)
+    ):
         try:
             import webbrowser
 
@@ -83,9 +86,12 @@ async def telekinesis_experiment(launcher: Launcher) -> None:
             webbrowser.open(qc_path.as_uri(), new=2)
         except Exception as e:
             logger.error(f"Failed to run data QC: {e}")
+            picker.frontend.notify(f"Failed to run data QC: {e}", ui.MessageLevel.ERROR)
 
     # Transfer data
-    # is_transfer = picker.ui_helper.prompt_yes_no_question("Would you like to transfer data?")
+    # is_transfer = picker.frontend.prompt_confirm(
+    #     ui.ConfirmRequest(label="Would you like to transfer data?", default=True)
+    # )
     # if not is_transfer:
     #    logger.info("Data transfer skipped by user.")
     #    return
