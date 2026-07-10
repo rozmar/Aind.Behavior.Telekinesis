@@ -12,7 +12,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Operating System :: Microsoft :: Windows",
 ]
-version = "0.5.5"
+version = "0.6.0rc1"
 readme = { file = "README.md", content-type = "text/markdown" }
 
 dependencies = ["aind_behavior_services>=0.13.5, <0.14", "pydantic-settings"]
@@ -25,9 +25,9 @@ Changelog = "https://github.com/AllenNeuralDynamics/Aind.Behavior.Telekinesis/re
 
 [project.optional-dependencies]
 
-data = ["contraqctor>=0.5.3, <0.6.0", "numpy", "pillow"]
+data = ["contraqctor>=0.6.0, <0.7.0", "numpy", "pillow"]
 
-launcher = ["aind-clabe[aind-services]>=0.10.2"]
+launcher = ["aind-clabe[aind-services]>=0.11.2"]
 
 [dependency-groups]
 

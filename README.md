@@ -44,7 +44,7 @@ Examples on how to generate these files can be found in the `./examples` directo
 The workflow can thus be executed using the [Bonsai CLI](https://bonsai-rx.org/docs/articles/cli.html):
 
 ```powershell
-"./bonsai/bonsai.exe" "./src/main.bonsai" -p SessionPath=<path-to-session.json> -p RigPath=<path-to-rig.json> -p TaskLogicPath=<path-to-task_logic.json>
+"./.bonsai/bonsai.exe" "./src/main.bonsai" -p SessionPath=<path-to-session.json> -p RigPath=<path-to-rig.json> -p TaskLogicPath=<path-to-task_logic.json>
 ```
 
 However, for a better experiment management user experience, it is recommended to use the provided experiment launcher below.

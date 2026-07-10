@@ -9,6 +9,7 @@ on:
       - release*
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   # ╔──────────────────────────╗
@@ -23,9 +24,9 @@ jobs:
     runs-on: windows-latest
     name: telekinesis unit tests
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@v8.3.0
         with:
           enable-cache: true
 
@@ -39,7 +40,7 @@ jobs:
         run: uv run ruff check
 
       - name: Run codespell
-        run: uv run codespell
+        run: uv run codespell --check-filenames
 
       - name: Setup .NET Core SDK
         uses: actions/setup-dotnet@v5
@@ -50,7 +51,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Setup Bonsai environment
-        working-directory: ./bonsai
+        working-directory: ./.bonsai
         run: ./setup.ps1
 
       - name: Run python unit tests
@@ -85,12 +86,12 @@ jobs:
     outputs:
       version: ${{ steps.get_version.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: main
 
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@v8.3.0
         with:
           enable-cache: true
 
@@ -115,7 +116,7 @@ jobs:
         run: uv build
 
       - name: Upload wheels as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -130,7 +131,6 @@ jobs:
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "Set version ${{ steps.get_version.outputs.version }} and regenerate schemas [skip ci]"
           git push origin main
-          # Move the release tag to point to this new commit
           git tag -fa "${{ github.event.release.tag_name }}" -m "${{ github.event.release.tag_name }}"
           git push origin "${{ github.event.release.tag_name }}" --force
 
@@ -147,15 +147,15 @@ jobs:
     runs-on: ubuntu-latest
     name: Publish to PyPI
     needs: prepare-release
-    if: false  # disabled until ready to publish
+    if: false # disabled until ready to publish
     steps:
       - name: Download wheels artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
 
-      - uses: astral-sh/setup-uv@v8.1.0
+      - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
 
@@ -182,12 +182,12 @@ jobs:
     if: github.event_name == 'release' && !github.event.release.prerelease
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v8.3.0
         with:
           enable-cache: true
 
