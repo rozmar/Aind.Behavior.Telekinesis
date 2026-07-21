@@ -18,16 +18,16 @@ import re
 import queue
 import shutil
 import subprocess
+import sys
 import threading
 import time
+import traceback
 from copy import deepcopy
 from pathlib import Path
 
 import matplotlib
 matplotlib.use("TkAgg")
 import copy
-import matplotlib.cm as _mcm
-
 import matplotlib.ticker as ticker
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -35,7 +35,7 @@ from matplotlib.figure import Figure
 from PIL import Image
 
 # Colormap for instantaneous mode: viridis for [0,1], vivid red above threshold
-_POS_CMAP = copy.copy(_mcm.get_cmap("viridis"))
+_POS_CMAP = copy.copy(matplotlib.colormaps["viridis"])
 _POS_CMAP.set_over("#d32f2f")
 
 import tkinter as tk
@@ -50,6 +50,24 @@ except Exception:
 # ── Paths ──────────────────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).parent.parent
 LOCAL_DIR    = PROJECT_ROOT / "local"
+CRASH_LOG    = LOCAL_DIR / "gui_crash.log"
+
+
+def _install_crash_handlers(app: "tk.Tk") -> None:
+    """Write unhandled exceptions (callbacks + threads) to CRASH_LOG."""
+    def _cb_exc(exc_type, exc_val, exc_tb):
+        with open(CRASH_LOG, "a") as f:
+            f.write(f"\n{'='*60}\n{datetime.datetime.now()}  [callback]\n")
+            traceback.print_exception(exc_type, exc_val, exc_tb, file=f)
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=sys.stderr)
+
+    def _thread_exc(args):
+        with open(CRASH_LOG, "a") as f:
+            f.write(f"\n{'='*60}\n{datetime.datetime.now()}  [thread: {args.thread.name}]\n")
+            traceback.print_exception(args.exc_type, args.exc_value, args.exc_traceback, file=f)
+
+    app.report_callback_exception = _cb_exc
+    threading.excepthook = _thread_exc
 MICE_DIR     = LOCAL_DIR / "mice"
 MICE_DIR.mkdir(parents=True, exist_ok=True)
 PRESETS_DIR  = LOCAL_DIR / "presets"
@@ -84,6 +102,10 @@ DEFAULT_PARAMS: dict = {
     "lat_range_max":  2000.0,
     "ap_range_min":  -2000.0,
     "ap_range_max":   2000.0,
+    # Camera parameters — per mouse
+    # Mouse position on rig — per mouse, not in LUT presets
+    "x_position":       0.0,
+    "z_position":       0.0,
     # Camera parameters — per mouse
     "camera_exposure":  10000,
     "camera_gain":      18.0,
@@ -470,6 +492,8 @@ class BackupTab(ttk.Frame):
                     self._log.config(state="disabled")
         except queue.Empty:
             pass
+        except Exception:
+            pass
         self.after(200, self._poll)
 
 
@@ -582,8 +606,10 @@ class ConfigTab(ttk.Frame):
             ("far_position",          "Far Position (mm)",      5.0,  0,       30,   0.5),
             ("close_position",        "Close Position (mm)",   14.5,  0,       30,   0.5),
             ("mouse_motor_hard_limit","Motor Limit (mm)",      15.0,  0,       30,   0.5),
-            ("quiescence_duration",  "Quiescence (s)",         0.5,  0.0,     60,   0.1),
-            ("quiescence_threshold", "Quiescence Threshold",   1.0,  0.0,   1000,   0.5),
+            ("x_position",           "X Position (mm)",         0.0, -100,    100,   0.5),
+            ("z_position",           "Z Position (mm)",         0.0, -100,    100,   0.5),
+            ("quiescence_duration",  "Quiescence (s)",          0.5,  0.0,    60,   0.1),
+            ("quiescence_threshold", "Quiescence Threshold",    1.0,  0.0,  1000,   0.5),
         ]:
             var = self._add_spinrow(pg, label, default, lo, hi, step)
             var.trace_add("write", self._on_task_param_changed)
@@ -844,25 +870,28 @@ class ConfigTab(ttk.Frame):
         name = self._preset_var.get()
         if not name or name not in self._presets:
             return
-        preset = deepcopy(self._presets[name])
-        # Preserve mouse-specific camera settings from the current params
-        for k in ("camera_exposure", "camera_gain", "camera_gamma",
-                  "camera2_exposure", "camera2_gain", "camera2_gamma"):
-            if k in self._params:
-                preset.setdefault(k, self._params[k])
-        self._params = preset
+        # Merge only allowed LUT keys — mouse-specific fields are never touched
+        for k, v in self._presets[name].items():
+            if k in self._LUT_PRESET_KEYS:
+                self._params[k] = deepcopy(v)
         self._apply_params_to_ui()
+
+    _LUT_PRESET_KEYS = {
+        "action_duration", "lick_response_time", "inter_trial_interval",
+        "quiescence_duration", "quiescence_threshold",
+        "is_operant", "instantaneous_mode", "motor_feedback",
+        "lut_offset", "lut_scale",
+        "lat_range_min", "lat_range_max", "ap_range_min", "ap_range_max",
+        "lut_gaussians", "lut_steps",
+    }
 
     def _on_save_preset_as(self):
         name = simpledialog.askstring("Save Preset", "Preset name:", parent=self)
         if not name or not name.strip():
             return
         name = name.strip()
-        # Preset stores task/LUT params only — no camera settings
         p = self._build_current_params()
-        preset = {k: v for k, v in p.items()
-                  if k not in ("camera_exposure", "camera_gain", "camera_gamma",
-                               "camera2_exposure", "camera2_gain", "camera2_gamma")}
+        preset = {k: v for k, v in p.items() if k in self._LUT_PRESET_KEYS}
         self._presets[name] = preset
         save_preset(name, preset)
         self._refresh_preset_list()
@@ -1212,10 +1241,11 @@ class ConfigTab(ttk.Frame):
             else:
                 n_g = len(p.get("lut_gaussians", []))
                 n_s = len(p.get("lut_steps", []))
+                display = matrix * p.get("lut_scale", 1.0)
                 self._lut_im.set_cmap("viridis")
-                self._lut_im.set_data(matrix)
+                self._lut_im.set_data(display)
                 self._lut_im.set_extent([lat_vec[0], lat_vec[-1], ap_vec[0], ap_vec[-1]])
-                self._lut_im.set_clim(matrix.min(), matrix.max())
+                self._lut_im.set_clim(display.min(), display.max())
                 self._lut_cbar.set_label("Speed (mm/s)", fontsize=8)
                 self._lut_ax.set_title(
                     f"Speed LUT  |  offset={p['lut_offset']:.2f}  scale×{p['lut_scale']:.2f}  "
@@ -1327,6 +1357,17 @@ class ConfigTab(ttk.Frame):
             for ax in ax_cfg:
                 if ax.get("axis") == 2:
                     ax["max_limit"] = float(p.get("mouse_motor_hard_limit", 15.0))
+            # y1 = close_pos: SpoutCtrl extended→close_pos, retracted→close_pos+(far-close)=far_pos.
+            # Continuous feedback: SpoutPosition = close_pos + SpoutOffset,
+            # converter_lut_output=[far-close, 0] maps LUT=0→far_pos, LUT=1→close_pos.
+            # y2 = 0.0: Y2 axis is not configured in axis_configuration; writing any non-zero
+            # value causes a Harp "erroneous write command S32" error.
+            manip_cal = rig_json.get("manipulator", {}).get("calibration", {})
+            if "initial_position" in manip_cal:
+                manip_cal["initial_position"]["x"]  = float(p.get("x_position", 0.0))
+                manip_cal["initial_position"]["z"]  = float(p.get("z_position", 0.0))
+                manip_cal["initial_position"]["y1"] = float(p.get("close_position", 14.5))
+                manip_cal["initial_position"]["y2"] = 0.0
             with open(rig_path, "w", encoding="utf-8") as f:
                 json.dump(rig_json, f, indent=2)
 
@@ -1348,10 +1389,12 @@ class ConfigTab(ttk.Frame):
         close_pos = p["close_position"]
         lut_path  = str(LOCAL_DIR / "2d_gaussian.tiff")
 
+        # initial_position.y1 = close_pos; SpoutPosition = close_pos + SpoutOffset.
+        # LUT=0 → offset=far-close (negative) → motor at far_pos; LUT=1 → offset=0 → motor at close_pos.
         feedback = (
             tl.ManipulatorFeedback(
                 converter_lut_input=[0, 1],
-                converter_lut_output=[far_pos, close_pos],
+                converter_lut_output=[far_pos - close_pos, 0],
             )
             if p.get("motor_feedback", True)
             else None
@@ -1407,7 +1450,10 @@ class ConfigTab(ttk.Frame):
                             action1_min=p["ap_range_min"],
                         )
                     },
-                    spout=tl.SpoutOperationControl(enabled=False),
+                    spout=tl.SpoutOperationControl(
+                        default_retraction_offset=far_pos - close_pos,
+                        enabled=True,
+                    ),
                 ),
             )
         )
@@ -1427,7 +1473,7 @@ class ConfigTab(ttk.Frame):
         self._profiles[name] = deepcopy(p)
         save_mouse_profile(name, p)
 
-        bonsai_exe      = PROJECT_ROOT / "bonsai" / "Bonsai.exe"
+        bonsai_exe      = PROJECT_ROOT / ".bonsai" / "Bonsai.exe"
         bonsai_workflow = PROJECT_ROOT / "src" / "main.bonsai"
         if not bonsai_exe.exists():
             messagebox.showwarning(
@@ -1438,6 +1484,7 @@ class ConfigTab(ttk.Frame):
                 parent=self,
             )
             return
+        bonsai_log = open(LOCAL_DIR / "bonsai.log", "w")
         subprocess.Popen(
             [
                 str(bonsai_exe),
@@ -1447,7 +1494,12 @@ class ConfigTab(ttk.Frame):
                 "-p", f"TaskPath={LOCAL_DIR / 'AindBehaviorTelekinesisTaskLogic.json'}",
             ],
             cwd=str(PROJECT_ROOT),
+            stdin=subprocess.DEVNULL,
+            stdout=bonsai_log,
+            stderr=bonsai_log,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
+        bonsai_log.close()  # parent can close; child inherited the handle
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1586,7 +1638,10 @@ class MonitorTab(ttk.Frame):
         try:
             while True:
                 event_name, ts, payload = self._event_queue.get_nowait()
-                self._handle_event(event_name, ts, payload)
+                try:
+                    self._handle_event(event_name, ts, payload)
+                except Exception:
+                    pass
         except queue.Empty:
             pass
         self.after(100, self._poll_queue)
@@ -2039,9 +2094,10 @@ class RigTab(ttk.Frame):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
+        _install_crash_handlers(self)
         self.title("Telekinesis Task Setup")
-        self.geometry("1300x900")
-        self.minsize(1050, 1000)
+        self.geometry("1300x1050")
+        self.minsize(1050, 1050)
 
         style = ttk.Style(self)
         style.theme_use("clam")
