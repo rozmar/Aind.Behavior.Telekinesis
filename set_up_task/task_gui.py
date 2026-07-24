@@ -234,6 +234,72 @@ def save_lut_image(params: dict, path: Path) -> tuple:
     return 0.0, 1.0, tiff_max  # offset, scale, lut_max
 
 
+# ── Load-cell calibration ─────────────────────────────────────────────────────
+
+_LC_CAL_CSV = Path(r"Z:\NDNF_metadata\NDNF experimenters_Calibration.csv")
+_LAT_DIRS   = {"LR", "RL"}
+_AP_DIRS    = {"AP", "PA"}
+
+
+def load_lc_calibration(rig_name: str) -> "dict | None":
+    """Read the calibration CSV for the given rig.
+
+    Returns a dict with keys:
+      'date'  – calibration date string (e.g. '2026/07/16')
+      'lat'   – (vals_arr, g_arr) for the lateral axis
+      'ap'    – (vals_arr, g_arr) for the AP axis
+      'axes'  – list of dicts per axis:
+                  {idx, direction, slope (g/au), baseline (au), vals, g}
+    Returns None if the rig is not found or the CSV is unreadable.
+    """
+    import csv
+    try:
+        rows: list[dict] = []
+        with open(_LC_CAL_CSV, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                rows.append(row)
+        rows = [r for r in rows
+                if r.get("Rig ID", "").strip() == rig_name
+                and "loadcell" in r.get("Device name", "").lower()]
+        if not rows:
+            return None
+
+        def _parse_date(r):
+            try:
+                return datetime.datetime.strptime(r.get("Calibration date", ""), "%Y/%m/%d")
+            except Exception:
+                return datetime.datetime.min
+
+        row = max(rows, key=_parse_date)
+        date_str = row.get("Calibration date", "").strip()
+        result: dict = {"date": date_str, "axes": []}
+        for axis_idx in range(3):
+            direction = row.get(f"Axis {axis_idx} direction", "").strip().upper()
+            try:
+                g_arr = np.array([float(x) for x in
+                                  row.get(f"Axis {axis_idx} g", "").strip("[]").split(",")])
+                v_arr = np.array([float(x) for x in
+                                  row.get(f"Axis {axis_idx} vals", "").strip("[]").split(",")])
+            except Exception:
+                result["axes"].append({"idx": axis_idx, "direction": direction})
+                continue
+            # Linear fit: g = slope * val + intercept  →  baseline = -intercept / slope
+            slope_fit, intercept_fit = np.polyfit(v_arr, g_arr, 1)
+            baseline_fit = -intercept_fit / slope_fit if slope_fit != 0 else 0.0
+            result["axes"].append({
+                "idx": axis_idx, "direction": direction,
+                "slope": slope_fit, "baseline": baseline_fit,
+                "vals": v_arr, "g": g_arr,
+            })
+            if direction in _LAT_DIRS:
+                result["lat"] = (v_arr, g_arr)
+            elif direction in _AP_DIRS:
+                result["ap"] = (v_arr, g_arr)
+        return result if ("lat" in result or "ap" in result) else None
+    except Exception:
+        return None
+
+
 # ── Profile I/O ────────────────────────────────────────────────────────────────
 
 def load_mouse_profiles() -> dict:
@@ -565,6 +631,9 @@ class ConfigTab(ttk.Frame):
         self._sel_step_idx: int | None  = None
         self._step_loading: bool     = False
         self._params_loading: bool   = False   # guard: suppress param traces while loading a profile
+        self._lc_calibration: "dict | None" = None
+        self._lc_calibration_rig: "str | None" = None
+        self._lc_calibration_time: float = 0.0
         self._build_ui()
         self._refresh_mouse_list()
 
@@ -1483,16 +1552,52 @@ class ConfigTab(ttk.Frame):
             self.after_cancel(self._lut_update_job)
         self._lut_update_job = self.after(80, self._update_lut_preview)
 
+    _CAL_TTL = 30.0  # seconds before re-reading the calibration CSV
+
+    def _get_calibration(self) -> "dict | None":
+        rig_path = LOCAL_DIR / "AindBehaviorTelekinesisRig.json"
+        try:
+            with open(rig_path, encoding="utf-8") as f:
+                rig_name = json.load(f).get("rig_name", DEFAULT_RIG["rig_name"])
+        except Exception:
+            rig_name = DEFAULT_RIG["rig_name"]
+        age = time.monotonic() - self._lc_calibration_time
+        if rig_name != self._lc_calibration_rig or age > self._CAL_TTL:
+            self._lc_calibration = load_lc_calibration(rig_name)
+            self._lc_calibration_rig = rig_name
+            self._lc_calibration_time = time.monotonic()
+        return self._lc_calibration
+
     def _update_lut_preview(self):
         try:
             p = self._build_current_params()
             matrix, lat_vec, ap_vec = compute_lut_matrix(p)
+
+            # Convert raw load-cell units to grams using rig calibration
+            cal = self._get_calibration()
+            if cal and "lat" in cal:
+                lv, lg = cal["lat"]
+                idx = np.argsort(lv)
+                lat_disp = np.interp(np.abs(lat_vec), lv[idx], lg[idx]) * np.sign(lat_vec)
+                lat_label = "Lateral Force (g, Left→Right)"
+            else:
+                lat_disp, lat_label = lat_vec, "Lateral Force (au, Left→Right)"
+            if cal and "ap" in cal:
+                av, ag = cal["ap"]
+                idx = np.argsort(av)
+                ap_disp = np.interp(np.abs(ap_vec), av[idx], ag[idx]) * np.sign(ap_vec)
+                ap_label = "AP Force (g, Posterior→Anterior)"
+            else:
+                ap_disp, ap_label = ap_vec, "AP Force (au, Posterior→Anterior)"
+
+            self._lut_ax.set_xlabel(lat_label, fontsize=8)
+            self._lut_ax.set_ylabel(ap_label, fontsize=8)
             inst = self._instantaneous_mode_var.get()
             if inst:
                 display = matrix * p.get("lut_scale", 1.0)
                 self._lut_im.set_cmap(_POS_CMAP)
                 self._lut_im.set_data(display)
-                self._lut_im.set_extent([lat_vec[0], lat_vec[-1], ap_vec[0], ap_vec[-1]])
+                self._lut_im.set_extent([lat_disp[0], lat_disp[-1], ap_disp[-1], ap_disp[0]])
                 self._lut_im.set_clim(0, 1)
                 self._lut_cbar.set_label("Lickport Position (0→1)", fontsize=8)
                 n_g = len(p.get("lut_gaussians", []))
@@ -1508,7 +1613,7 @@ class ConfigTab(ttk.Frame):
                 display = matrix * p.get("lut_scale", 1.0)
                 self._lut_im.set_cmap("viridis")
                 self._lut_im.set_data(display)
-                self._lut_im.set_extent([lat_vec[0], lat_vec[-1], ap_vec[0], ap_vec[-1]])
+                self._lut_im.set_extent([lat_disp[0], lat_disp[-1], ap_disp[-1], ap_disp[0]])
                 self._lut_im.set_clim(display.min(), display.max())
                 self._lut_cbar.set_label("Speed (mm/s)", fontsize=8)
                 self._lut_ax.set_title(
@@ -1517,6 +1622,8 @@ class ConfigTab(ttk.Frame):
                     fontsize=8,
                 )
             self._lut_cbar.update_normal(self._lut_im)
+            self._lut_ax.set_xlim(lat_disp[0], lat_disp[-1])
+            self._lut_ax.set_ylim(ap_disp[-1], ap_disp[0])  # inverted: posterior(+) at bottom, anterior(−) at top
 
             # Iso-lines — remove each stored artist individually so a single
             # failure never blocks the rest.
@@ -1534,7 +1641,7 @@ class ConfigTab(ttk.Frame):
                         before_c = set(id(c) for c in self._lut_ax.collections)
                         before_t = set(id(t) for t in self._lut_ax.texts)
                         cs = self._lut_ax.contour(
-                            lat_vec, ap_vec, display, levels=levels,
+                            lat_disp, ap_disp, display, levels=levels,
                             colors="white", linewidths=0.8, linestyles="dashed",
                         )
                         self._lut_ax.clabel(cs, fmt="%.2g", fontsize=7)
@@ -2240,6 +2347,36 @@ class RigTab(ttk.Frame):
             foreground="gray", justify="left")
         info.pack(anchor="w", padx=4, pady=(4, 0))
 
+        # CSV calibration info
+        calg = ttk.LabelFrame(right, text="Load Cell Calibration (from CSV)")
+        calg.pack(fill="x", pady=(6, 0))
+        date_row = ttk.Frame(calg)
+        date_row.pack(fill="x", padx=4, pady=(4, 2))
+        ttk.Label(date_row, text="Latest date:", width=14, anchor="e").pack(side="left")
+        self._cal_date_var = tk.StringVar(value="—")
+        ttk.Label(date_row, textvariable=self._cal_date_var,
+                  font=("TkDefaultFont", 9, "bold")).pack(side="left", padx=(4, 0))
+
+        axes_hdr = ttk.Frame(calg)
+        axes_hdr.pack(fill="x", padx=4)
+        for txt, w in [("Axis", 4), ("Dir", 5), ("Slope (g/au)", 14), ("Baseline (au)", 14)]:
+            ttk.Label(axes_hdr, text=txt, width=w,
+                      font=("TkDefaultFont", 8, "bold")).pack(side="left")
+        self._cal_axis_labels: list[dict] = []
+        for _ in range(3):
+            fr = ttk.Frame(calg)
+            fr.pack(fill="x", padx=4, pady=1)
+            d: dict = {}
+            for key, w in [("idx", 4), ("dir", 5), ("slope", 14), ("baseline", 14)]:
+                v = tk.StringVar(value="—")
+                ttk.Label(fr, textvariable=v, width=w).pack(side="left")
+                d[key] = v
+            self._cal_axis_labels.append(d)
+
+        ttk.Button(calg, text="Refresh from CSV",
+                   command=lambda: self._refresh_cal_display(self._rig_name_var.get().strip())
+                   ).pack(anchor="w", padx=4, pady=(4, 4))
+
         # ── Bottom buttons ─────────────────────────────────────────────────────
         bf = ttk.Frame(self)
         bf.pack(fill="x", padx=8, pady=(0, 6))
@@ -2328,8 +2465,30 @@ class RigTab(ttk.Frame):
                     ch_vars["slope"].set("1.0")
 
             self._status_lbl.config(text="Loaded.", foreground="gray")
+            self._refresh_cal_display(rig.get("rig_name", DEFAULT_RIG["rig_name"]))
         except Exception as exc:
             self._status_lbl.config(text=f"Load error: {exc}", foreground="red")
+
+    def _refresh_cal_display(self, rig_name: str):
+        cal = load_lc_calibration(rig_name)
+        if cal is None:
+            self._cal_date_var.set("not found")
+            for row in self._cal_axis_labels:
+                for v in row.values():
+                    v.set("—")
+            return
+        self._cal_date_var.set(cal.get("date", "—"))
+        for axis_info in cal.get("axes", []):
+            idx = axis_info.get("idx")
+            if idx is None or idx >= len(self._cal_axis_labels):
+                continue
+            row = self._cal_axis_labels[idx]
+            row["idx"].set(str(idx))
+            row["dir"].set(axis_info.get("direction", "—"))
+            slope = axis_info.get("slope")
+            baseline = axis_info.get("baseline")
+            row["slope"].set(f"{slope:.6f}" if slope is not None else "—")
+            row["baseline"].set(f"{baseline:.1f}" if baseline is not None else "—")
 
     def _on_save(self):
         try:
