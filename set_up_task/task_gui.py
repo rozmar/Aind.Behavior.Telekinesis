@@ -913,6 +913,16 @@ class ConfigTab(ttk.Frame):
             self._step_vars[key] = var
 
         # ── Bottom: matplotlib LUT preview (full width) ────────────────────────
+        iso_row = ttk.Frame(lut_frame)
+        iso_row.pack(fill="x", padx=4, pady=(0, 2))
+        ttk.Label(iso_row, text="Iso-lines:").pack(side="left")
+        self._iso_lines_var = tk.StringVar()
+        iso_entry = ttk.Entry(iso_row, textvariable=self._iso_lines_var, width=30)
+        iso_entry.pack(side="left", padx=(4, 0))
+        ttk.Label(iso_row, text="(comma-separated values)", foreground="gray").pack(side="left", padx=(4, 0))
+        self._iso_lines_var.trace_add("write", lambda *_: self._schedule_lut_update())
+        self._lut_contour_artists = []
+
         canvas_frame = ttk.Frame(lut_frame)
         canvas_frame.pack(fill="both", expand=True, padx=4, pady=(0, 4))
 
@@ -1507,6 +1517,34 @@ class ConfigTab(ttk.Frame):
                     fontsize=8,
                 )
             self._lut_cbar.update_normal(self._lut_im)
+
+            # Iso-lines — remove each stored artist individually so a single
+            # failure never blocks the rest.
+            for artist in self._lut_contour_artists:
+                try:
+                    artist.remove()
+                except Exception:
+                    pass
+            self._lut_contour_artists = []
+            iso_text = self._iso_lines_var.get()
+            if iso_text.strip():
+                try:
+                    levels = sorted(float(v) for v in iso_text.split(",") if v.strip())
+                    if levels:
+                        before_c = set(id(c) for c in self._lut_ax.collections)
+                        before_t = set(id(t) for t in self._lut_ax.texts)
+                        cs = self._lut_ax.contour(
+                            lat_vec, ap_vec, display, levels=levels,
+                            colors="white", linewidths=0.8, linestyles="dashed",
+                        )
+                        self._lut_ax.clabel(cs, fmt="%.2g", fontsize=7)
+                        self._lut_contour_artists = (
+                            [c for c in self._lut_ax.collections if id(c) not in before_c] +
+                            [t for t in self._lut_ax.texts    if id(t) not in before_t]
+                        )
+                except Exception:
+                    pass
+
             self._lut_canvas.draw_idle()
         except Exception:
             pass
