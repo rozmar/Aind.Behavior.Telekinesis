@@ -13,6 +13,7 @@ Run:
 
 import ctypes
 import datetime
+import io
 import json
 import re
 import queue
@@ -39,7 +40,7 @@ _POS_CMAP = copy.copy(matplotlib.colormaps["viridis"])
 _POS_CMAP.set_over("#d32f2f")
 
 import tkinter as tk
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import messagebox, scrolledtext, simpledialog, ttk
 
 # ── High-DPI awareness on Windows ─────────────────────────────────────────────
 try:
@@ -50,24 +51,60 @@ except Exception:
 # ── Paths ──────────────────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).parent.parent
 LOCAL_DIR    = PROJECT_ROOT / "local"
-CRASH_LOG    = LOCAL_DIR / "gui_crash.log"
 
 
-def _install_crash_handlers(app: "tk.Tk") -> None:
-    """Write unhandled exceptions (callbacks + threads) to CRASH_LOG."""
+def _install_crash_handlers(app: "tk.Tk", log_tab: "LogTab") -> None:
+    """Show unhandled exceptions in the Log tab and switch to it automatically."""
+
+    def _show(text: str) -> None:
+        try:
+            log_tab.append(text)
+            idx = log_tab._tab_index()
+            if idx is not None:
+                log_tab._nb.select(idx)
+        except Exception:
+            pass
+
     def _cb_exc(exc_type, exc_val, exc_tb):
-        with open(CRASH_LOG, "a") as f:
-            f.write(f"\n{'='*60}\n{datetime.datetime.now()}  [callback]\n")
-            traceback.print_exception(exc_type, exc_val, exc_tb, file=f)
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=sys.stderr)
+        # Already on the main thread — call directly, no after() needed.
+        msg = (f"\n{'='*60}\n{datetime.datetime.now()}  [callback]\n"
+               + "".join(traceback.format_exception(exc_type, exc_val, exc_tb)))
+        _show(msg)
 
     def _thread_exc(args):
-        with open(CRASH_LOG, "a") as f:
-            f.write(f"\n{'='*60}\n{datetime.datetime.now()}  [thread: {args.thread.name}]\n")
-            traceback.print_exception(args.exc_type, args.exc_value, args.exc_traceback, file=f)
+        # Background thread — must schedule on the event loop.
+        msg = (f"\n{'='*60}\n{datetime.datetime.now()}  [thread: {args.thread.name}]\n"
+               + "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)))
+        try:
+            app.after(0, lambda: _show(msg))
+        except Exception:
+            pass
+
+    # Belt-and-suspenders: tee sys.stderr so anything written there by
+    # third-party code (or the Python default excepthook) also appears.
+    _orig_stderr = sys.stderr
+
+    class _StderrTee:
+        def write(self, text: str) -> None:
+            _orig_stderr.write(text)
+            if text and text.strip():
+                try:
+                    app.after(0, lambda t=text: log_tab.append(t))
+                except Exception:
+                    pass
+
+        def flush(self) -> None:
+            _orig_stderr.flush()
+
+        def fileno(self) -> int:
+            return _orig_stderr.fileno()
+
+    sys.stderr = _StderrTee()
 
     app.report_callback_exception = _cb_exc
     threading.excepthook = _thread_exc
+
+
 MICE_DIR     = LOCAL_DIR / "mice"
 MICE_DIR.mkdir(parents=True, exist_ok=True)
 PRESETS_DIR  = LOCAL_DIR / "presets"
@@ -96,6 +133,7 @@ DEFAULT_PARAMS: dict = {
         {"center_lat": -750, "center_ap": -750, "sigma_lat": 200, "sigma_ap": 200, "peak": 5.0, "trough": 0.0},
     ],
     "lut_steps": [],
+    "trial_number":          100,
     "lut_offset":    -0.05,
     "lut_scale":      2.5,
     "lat_range_min": -2000.0,
@@ -178,9 +216,22 @@ def compute_lut_matrix(params: dict, bin_num: int = 100):
     return matrix, lat_vec, ap_vec
 
 
-def save_lut_image(params: dict, path: Path):
+def save_lut_image(params: dict, path: Path) -> tuple:
+    """Save LUT as float32 TIFF with values in [0, 512].
+
+    The display matrix (matrix * lut_scale) is normalised so its minimum maps to 0
+    and its maximum maps to 512.  converter_lut_input=[0, 512] in Bonsai matches
+    this range directly — no offset/scale encoding needed (offset=0, scale=1).
+    """
     matrix, _, _ = compute_lut_matrix(params)
-    Image.fromarray(matrix.astype(np.float32)).save(str(path))
+    display = matrix * params.get("lut_scale", 1.0)
+    tiff_max = float(display.max())
+    if tiff_max > 0:
+        float32 = (display / tiff_max * 512).astype(np.float32)
+    else:
+        float32 = np.zeros_like(display, dtype=np.float32)
+    Image.fromarray(float32).save(str(path))
+    return 0.0, 1.0, tiff_max  # offset, scale, lut_max
 
 
 # ── Profile I/O ────────────────────────────────────────────────────────────────
@@ -507,6 +558,8 @@ class ConfigTab(ttk.Frame):
         self._profiles: dict         = load_mouse_profiles()
         self._presets: dict          = load_presets()
         self._params: dict           = deepcopy(DEFAULT_PARAMS)
+        self._blocks: list           = [deepcopy({k: DEFAULT_PARAMS[k] for k in self._BLOCK_KEYS if k in DEFAULT_PARAMS})]
+        self._current_block: int     = 0
         self._sel_gauss_idx: int | None = None
         self._gauss_loading: bool    = False   # guard against re-entrant gaussian trace
         self._sel_step_idx: int | None  = None
@@ -592,12 +645,36 @@ class ConfigTab(ttk.Frame):
 
         self._refresh_preset_list()
 
+        # Blocks
+        blkg = ttk.LabelFrame(parent, text="Blocks")
+        blkg.pack(fill="x", pady=(0, 5))
+
+        blk_row1 = ttk.Frame(blkg)
+        blk_row1.pack(fill="x", padx=4, pady=(4, 2))
+        ttk.Label(blk_row1, text="Current:").pack(side="left")
+        self._block_var   = tk.StringVar()
+        self._block_combo = ttk.Combobox(blk_row1, textvariable=self._block_var,
+                                         width=10, state="readonly")
+        self._block_combo.pack(side="left", padx=(4, 2))
+        self._block_combo.bind("<<ComboboxSelected>>", self._on_block_selected)
+        ttk.Button(blk_row1, text="▲", width=3, command=self._move_block_up).pack(side="left")
+        ttk.Button(blk_row1, text="▼", width=3, command=self._move_block_down).pack(side="left", padx=(1, 0))
+
+        blk_row2 = ttk.Frame(blkg)
+        blk_row2.pack(fill="x", padx=4, pady=(0, 4))
+        ttk.Button(blk_row2, text="Add Before", command=self._add_block_before).pack(side="left")
+        ttk.Button(blk_row2, text="Add After",  command=self._add_block_after).pack(side="left", padx=2)
+        ttk.Button(blk_row2, text="Delete",     command=self._delete_block).pack(side="left")
+
+        self._refresh_block_selector()
+
         # Task parameters
         pg = ttk.LabelFrame(parent, text="Task Parameters")
         pg.pack(fill="x", pady=(0, 5))
 
         self._param_vars: dict = {}
         for key, label, default, lo, hi, step in [
+            ("trial_number",          "Trial Number",          100,    1,    10000,  10),
             ("trial_length",          "Trial Length (s)",    1000.0,  1,    10000, 100.0),
             ("action_duration",       "Hold Duration (s)",      0.1,  0.0,     10,  0.05),
             ("lick_response_time",    "Lick Response (s)",      4.0,  0.1,     60,   0.5),
@@ -870,10 +947,23 @@ class ConfigTab(ttk.Frame):
         name = self._preset_var.get()
         if not name or name not in self._presets:
             return
-        # Merge only allowed LUT keys — mouse-specific fields are never touched
-        for k, v in self._presets[name].items():
-            if k in self._LUT_PRESET_KEYS:
-                self._params[k] = deepcopy(v)
+        preset = self._presets[name]
+        if "blocks" in preset:
+            # New format: replace all blocks, load block 0
+            self._save_current_block()
+            self._blocks = deepcopy(preset["blocks"])
+            if not self._blocks:
+                return
+            self._current_block = 0
+            for k in self._BLOCK_KEYS:
+                if k in self._blocks[0]:
+                    self._params[k] = deepcopy(self._blocks[0][k])
+            self._refresh_block_selector()
+        else:
+            # Old format: merge LUT keys into current block only
+            for k, v in preset.items():
+                if k in self._LUT_PRESET_KEYS:
+                    self._params[k] = deepcopy(v)
         self._apply_params_to_ui()
 
     _LUT_PRESET_KEYS = {
@@ -885,13 +975,117 @@ class ConfigTab(ttk.Frame):
         "lut_gaussians", "lut_steps",
     }
 
+    # Keys saved per-block in presets — excludes mouse-specific physical params
+    # (far_position, close_position, reward_size, trial_length)
+    _PRESET_BLOCK_KEYS = _LUT_PRESET_KEYS | {"trial_number"}
+
+    _BLOCK_KEYS = {
+        "trial_number", "trial_length", "action_duration", "lick_response_time",
+        "inter_trial_interval", "reward_size", "far_position", "close_position",
+        "quiescence_duration", "quiescence_threshold",
+        "is_operant", "instantaneous_mode", "motor_feedback",
+        "lut_offset", "lut_scale",
+        "lat_range_min", "lat_range_max", "ap_range_min", "ap_range_max",
+        "lut_gaussians", "lut_steps",
+    }
+
+    # ── Block management ───────────────────────────────────────────────────────
+
+    def _save_current_block(self):
+        """Snapshot current UI into self._blocks[self._current_block]."""
+        if not self._blocks or self._current_block >= len(self._blocks):
+            return
+        p = self._build_current_params()
+        self._blocks[self._current_block] = {
+            k: deepcopy(p[k]) for k in self._BLOCK_KEYS if k in p
+        }
+
+    def _load_block(self, idx: int):
+        if not (0 <= idx < len(self._blocks)):
+            return
+        for k in self._BLOCK_KEYS:
+            if k in self._blocks[idx]:
+                self._params[k] = deepcopy(self._blocks[idx][k])
+        self._current_block = idx
+        self._apply_params_to_ui()
+
+    def _refresh_block_selector(self):
+        values = [f"Block {i}" for i in range(len(self._blocks))]
+        self._block_combo["values"] = values
+        self._block_var.set(f"Block {self._current_block}")
+
+    def _on_block_selected(self, _=None):
+        sel = self._block_var.get()
+        try:
+            idx = int(sel.split()[-1])
+        except (ValueError, IndexError):
+            return
+        if idx == self._current_block:
+            return
+        self._save_current_block()
+        self._load_block(idx)
+        self._refresh_block_selector()
+
+    def _add_block_before(self):
+        """Insert a copy of the current block before it; stay on current (shifted right)."""
+        self._save_current_block()
+        new_block = deepcopy(self._blocks[self._current_block])
+        self._blocks.insert(self._current_block, new_block)
+        self._current_block += 1
+        self._load_block(self._current_block)
+        self._refresh_block_selector()
+
+    def _add_block_after(self):
+        """Insert a copy of the current block after it; switch to the new block."""
+        self._save_current_block()
+        new_block = deepcopy(self._blocks[self._current_block])
+        insert_at = self._current_block + 1
+        self._blocks.insert(insert_at, new_block)
+        self._current_block = insert_at
+        self._load_block(self._current_block)
+        self._refresh_block_selector()
+
+    def _delete_block(self):
+        if len(self._blocks) <= 1:
+            messagebox.showwarning("Cannot Delete", "Must keep at least one block.", parent=self)
+            return
+        self._blocks.pop(self._current_block)
+        self._current_block = max(0, self._current_block - 1)
+        self._load_block(self._current_block)
+        self._refresh_block_selector()
+
+    def _move_block_up(self):
+        if self._current_block <= 0:
+            return
+        self._save_current_block()
+        i = self._current_block
+        self._blocks[i], self._blocks[i - 1] = self._blocks[i - 1], self._blocks[i]
+        self._current_block -= 1
+        self._load_block(self._current_block)
+        self._refresh_block_selector()
+
+    def _move_block_down(self):
+        if self._current_block >= len(self._blocks) - 1:
+            return
+        self._save_current_block()
+        i = self._current_block
+        self._blocks[i], self._blocks[i + 1] = self._blocks[i + 1], self._blocks[i]
+        self._current_block += 1
+        self._load_block(self._current_block)
+        self._refresh_block_selector()
+
     def _on_save_preset_as(self):
         name = simpledialog.askstring("Save Preset", "Preset name:", parent=self)
         if not name or not name.strip():
             return
         name = name.strip()
-        p = self._build_current_params()
-        preset = {k: v for k, v in p.items() if k in self._LUT_PRESET_KEYS}
+        self._save_current_block()
+        preset = {
+            "blocks": [
+                {k: deepcopy(blk[k]) for k in self._PRESET_BLOCK_KEYS if k in blk}
+                for blk in self._blocks
+            ]
+        }
         self._presets[name] = preset
         save_preset(name, preset)
         self._refresh_preset_list()
@@ -957,28 +1151,53 @@ class ConfigTab(ttk.Frame):
 
     def _on_mouse_selected(self, _=None):
         name = self._mouse_var.get()
-        self._params = deepcopy(self._profiles.get(name, DEFAULT_PARAMS))
-        # Back-fill any missing camera keys from the rig JSON so existing profiles
-        # that were saved before these fields existed still behave correctly.
+        raw = self._profiles.get(name, DEFAULT_PARAMS)
         rig_cams = self._rig_camera_defaults()
-        for k, v in rig_cams.items():
-            if k not in self._params:
-                self._params[k] = v
+        if "blocks" in raw:
+            # New multi-block profile format
+            self._blocks = deepcopy(raw["blocks"])
+            if not self._blocks:
+                self._blocks = [deepcopy({k: DEFAULT_PARAMS[k] for k in self._BLOCK_KEYS if k in DEFAULT_PARAMS})]
+            self._current_block = 0
+            self._params = deepcopy(DEFAULT_PARAMS)
+            for k, v in raw.items():
+                if k != "blocks":
+                    self._params[k] = deepcopy(v)
+            for k, v in rig_cams.items():
+                if k not in raw:
+                    self._params[k] = v
+            for k in self._BLOCK_KEYS:
+                if k in self._blocks[0]:
+                    self._params[k] = deepcopy(self._blocks[0][k])
+        else:
+            # Old flat profile format — treat as single-block
+            self._params = deepcopy(raw)
+            for k, v in rig_cams.items():
+                if k not in self._params:
+                    self._params[k] = v
+            block0 = {k: deepcopy(self._params[k]) for k in self._BLOCK_KEYS if k in self._params}
+            block0.setdefault("trial_number", DEFAULT_PARAMS.get("trial_number", 100))
+            self._blocks = [block0]
+            self._current_block = 0
+        self._refresh_block_selector()
         self._apply_params_to_ui()
 
     def _on_new_mouse(self):
         name = simpledialog.askstring("New Mouse", "Enter mouse name:", parent=self)
         if name and name.strip():
             name = name.strip()
-            new_profile = deepcopy(DEFAULT_PARAMS)
-            # Seed camera settings from the current rig JSON so Generate Config
-            # doesn't silently change the camera from its intended configuration.
-            new_profile.update(self._rig_camera_defaults())
-            self._profiles[name] = new_profile
-            save_mouse_profile(name, self._profiles[name])
+            new_params = deepcopy(DEFAULT_PARAMS)
+            new_params.update(self._rig_camera_defaults())
+            block0 = {k: deepcopy(new_params[k]) for k in self._BLOCK_KEYS if k in new_params}
+            profile = {
+                "blocks": [block0],
+                **{k: v for k, v in new_params.items() if k not in self._BLOCK_KEYS},
+            }
+            self._profiles[name] = profile
+            save_mouse_profile(name, profile)
             self._refresh_mouse_list()
             self._mouse_combo.set(name)
-            self._on_mouse_selected()   # reset self._params to this new mouse's defaults
+            self._on_mouse_selected()   # reset self._params / self._blocks to this mouse
 
     def _on_delete_mouse(self):
         name = self._mouse_var.get()
@@ -1031,14 +1250,22 @@ class ConfigTab(ttk.Frame):
             return
         for key, var in self._param_vars.items():
             try:
-                self._params[key] = var.get()
+                v = var.get()
+                self._params[key] = v
+                if key in self._BLOCK_KEYS and self._blocks:
+                    self._blocks[self._current_block][key] = v
             except Exception:
                 pass
-        self._params["is_operant"] = self._is_operant_var.get()
-        self._params["instantaneous_mode"] = self._instantaneous_mode_var.get()
-        self._params["motor_feedback"] = self._motor_feedback_var.get()
-        self._params["experimenter"] = self._exp_var.get()
-        self._params["notes"] = self._notes_var.get()
+        for key, val in [
+            ("is_operant", self._is_operant_var.get()),
+            ("instantaneous_mode", self._instantaneous_mode_var.get()),
+            ("motor_feedback", self._motor_feedback_var.get()),
+            ("experimenter", self._exp_var.get()),
+            ("notes", self._notes_var.get()),
+        ]:
+            self._params[key] = val
+            if key in self._BLOCK_KEYS and self._blocks:
+                self._blocks[self._current_block][key] = val
 
     def _on_gamma_toggled(self, cam: int = 1):
         if cam == 1:
@@ -1086,6 +1313,8 @@ class ConfigTab(ttk.Frame):
             gaussians[idx] = {k: v.get() for k, v in self._gauss_vars.items()}
         except Exception:
             return
+        if self._blocks:
+            self._blocks[self._current_block]["lut_gaussians"] = deepcopy(gaussians)
         # Refresh only the changed item label (avoids full list rebuild)
         self._gauss_lb.delete(idx)
         self._gauss_lb.insert(idx, self._gauss_label(idx, gaussians[idx]))
@@ -1097,6 +1326,8 @@ class ConfigTab(ttk.Frame):
                  "sigma_lat": 200.0, "sigma_ap": 200.0,
                  "peak": 5.0, "trough": 0.0}
         self._params.setdefault("lut_gaussians", []).append(new_g)
+        if self._blocks:
+            self._blocks[self._current_block]["lut_gaussians"] = deepcopy(self._params["lut_gaussians"])
         self._refresh_gauss_list()
         new_idx = len(self._params["lut_gaussians"]) - 1
         self._gauss_lb.selection_set(new_idx)
@@ -1109,6 +1340,8 @@ class ConfigTab(ttk.Frame):
         gaussians = self._params.get("lut_gaussians", [])
         if idx is not None and 0 <= idx < len(gaussians):
             gaussians.pop(idx)
+            if self._blocks:
+                self._blocks[self._current_block]["lut_gaussians"] = deepcopy(gaussians)
             self._sel_gauss_idx = max(0, idx - 1) if gaussians else None
             self._refresh_gauss_list(keep_selection=True)
             if self._sel_gauss_idx is not None:
@@ -1123,6 +1356,8 @@ class ConfigTab(ttk.Frame):
         new_idx = idx + direction
         if 0 <= new_idx < len(gaussians):
             gaussians[idx], gaussians[new_idx] = gaussians[new_idx], gaussians[idx]
+            if self._blocks:
+                self._blocks[self._current_block]["lut_gaussians"] = deepcopy(gaussians)
             self._sel_gauss_idx = new_idx
             self._refresh_gauss_list()
             self._gauss_lb.selection_set(new_idx)
@@ -1169,6 +1404,8 @@ class ConfigTab(ttk.Frame):
             steps[idx] = {k: v.get() for k, v in self._step_vars.items()}
         except Exception:
             return
+        if self._blocks:
+            self._blocks[self._current_block]["lut_steps"] = deepcopy(steps)
         self._step_lb.delete(idx)
         self._step_lb.insert(idx, self._step_label(idx, steps[idx]))
         self._step_lb.selection_set(idx)
@@ -1179,6 +1416,8 @@ class ConfigTab(ttk.Frame):
                  "width_lat": 400.0, "width_ap": 400.0,
                  "peak": 5.0, "trough": 0.0}
         self._params.setdefault("lut_steps", []).append(new_s)
+        if self._blocks:
+            self._blocks[self._current_block]["lut_steps"] = deepcopy(self._params["lut_steps"])
         self._refresh_step_list()
         new_idx = len(self._params["lut_steps"]) - 1
         self._step_lb.selection_set(new_idx)
@@ -1191,6 +1430,8 @@ class ConfigTab(ttk.Frame):
         steps = self._params.get("lut_steps", [])
         if idx is not None and 0 <= idx < len(steps):
             steps.pop(idx)
+            if self._blocks:
+                self._blocks[self._current_block]["lut_steps"] = deepcopy(steps)
             self._sel_step_idx = max(0, idx - 1) if steps else None
             self._refresh_step_list(keep_selection=True)
             if self._sel_step_idx is not None:
@@ -1205,6 +1446,8 @@ class ConfigTab(ttk.Frame):
         new_idx = idx + direction
         if 0 <= new_idx < len(steps):
             steps[idx], steps[new_idx] = steps[new_idx], steps[idx]
+            if self._blocks:
+                self._blocks[self._current_block]["lut_steps"] = deepcopy(steps)
             self._sel_step_idx = new_idx
             self._refresh_step_list()
             self._step_lb.selection_set(new_idx)
@@ -1215,6 +1458,17 @@ class ConfigTab(ttk.Frame):
 
     def _schedule_lut_update(self):
         """Rate-limit preview redraws to avoid UI stutter while typing."""
+        if not self._params_loading and self._blocks:
+            blk = self._blocks[self._current_block]
+            for attr, key in [
+                ("_lut_offset_var", "lut_offset"), ("_lut_scale_var", "lut_scale"),
+                ("_lat_min_var", "lat_range_min"), ("_lat_max_var", "lat_range_max"),
+                ("_ap_min_var", "ap_range_min"), ("_ap_max_var", "ap_range_max"),
+            ]:
+                try:
+                    blk[key] = getattr(self, attr).get()
+                except Exception:
+                    pass
         if hasattr(self, "_lut_update_job"):
             self.after_cancel(self._lut_update_job)
         self._lut_update_job = self.after(80, self._update_lut_preview)
@@ -1289,9 +1543,14 @@ class ConfigTab(ttk.Frame):
 
     def _on_save_profile(self):
         name = self._mouse_var.get()
+        self._save_current_block()
         p = self._build_current_params()
-        self._profiles[name] = deepcopy(p)
-        save_mouse_profile(name, p)
+        profile = {
+            "blocks": deepcopy(self._blocks),
+            **{k: v for k, v in p.items() if k not in self._BLOCK_KEYS},
+        }
+        self._profiles[name] = profile
+        save_mouse_profile(name, profile)
         messagebox.showinfo("Saved", f"Profile '{name}' saved to:\n{MICE_DIR / name}.json", parent=self)
 
     def _on_generate_config(self):
@@ -1304,12 +1563,15 @@ class ConfigTab(ttk.Frame):
             messagebox.showerror("Error", str(exc), parent=self)
 
     def _generate_config(self):
-        p         = self._build_current_params()
+        self._save_current_block()
+        p          = self._build_current_params()  # mouse-level + current block params
         mouse_name = self._mouse_var.get()
 
-        # 1. LUT image
-        lut_path = LOCAL_DIR / "2d_gaussian.tiff"
-        save_lut_image(p, lut_path)
+        # 1. LUT images — one per block; collect per-block speed ranges (mm/s)
+        lut_ranges = []
+        for i, block in enumerate(self._blocks):
+            bp = {**p, **block}
+            lut_ranges.append(save_lut_image(bp, LOCAL_DIR / f"2d_gaussian_block{i}.tiff"))
 
         # 2. Session JSON – use a microsecond-precision session_name so two runs in
         #    the same second still produce different data folders in Bonsai.
@@ -1330,11 +1592,13 @@ class ConfigTab(ttk.Frame):
             f.write(session.model_dump_json(indent=2))
 
         # 3. TaskLogic JSON via pydantic models
-        self._generate_task_logic(p, LOCAL_DIR / "AindBehaviorTelekinesisTaskLogic.json")
+        self._generate_task_logic(p, self._blocks, LOCAL_DIR / "AindBehaviorTelekinesisTaskLogic.json", lut_ranges)
 
         # 4. Patch per-mouse camera settings into all cameras in rig JSON
         rig_path = LOCAL_DIR / "AindBehaviorTelekinesisRig.json"
         data_directory = "C:\\Data"
+        # Block 0 drives initial motor position (spout starts at close_pos)
+        block0 = {**p, **self._blocks[0]}
         if rig_path.exists():
             with open(rig_path, encoding="utf-8") as f:
                 rig_json = json.load(f)
@@ -1357,16 +1621,12 @@ class ConfigTab(ttk.Frame):
             for ax in ax_cfg:
                 if ax.get("axis") == 2:
                     ax["max_limit"] = float(p.get("mouse_motor_hard_limit", 15.0))
-            # y1 = close_pos: SpoutCtrl extended→close_pos, retracted→close_pos+(far-close)=far_pos.
-            # Continuous feedback: SpoutPosition = close_pos + SpoutOffset,
-            # converter_lut_output=[far-close, 0] maps LUT=0→far_pos, LUT=1→close_pos.
-            # y2 = 0.0: Y2 axis is not configured in axis_configuration; writing any non-zero
-            # value causes a Harp "erroneous write command S32" error.
+            # y1 = close_pos from block 0; y2 = 0.0 (axis not configured — non-zero triggers error)
             manip_cal = rig_json.get("manipulator", {}).get("calibration", {})
             if "initial_position" in manip_cal:
                 manip_cal["initial_position"]["x"]  = float(p.get("x_position", 0.0))
                 manip_cal["initial_position"]["z"]  = float(p.get("z_position", 0.0))
-                manip_cal["initial_position"]["y1"] = float(p.get("close_position", 14.5))
+                manip_cal["initial_position"]["y1"] = float(block0.get("close_position", 14.5))
                 manip_cal["initial_position"]["y2"] = 0.0
             with open(rig_path, "w", encoding="utf-8") as f:
                 json.dump(rig_json, f, indent=2)
@@ -1382,76 +1642,86 @@ class ConfigTab(ttk.Frame):
 
         return session_folder
 
-    def _generate_task_logic(self, p: dict, path: Path):
+    def _generate_task_logic(self, mouse_p: dict, blocks: list, path: Path, lut_ranges: list):
         import aind_behavior_telekinesis.task_logic as tl  # noqa: F401 (keep local import)
 
-        far_pos   = p["far_position"]
-        close_pos = p["close_position"]
-        lut_path  = str(LOCAL_DIR / "2d_gaussian.tiff")
+        block_generators = []
+        action_luts: dict = {}
 
-        # initial_position.y1 = close_pos; SpoutPosition = close_pos + SpoutOffset.
-        # LUT=0 → offset=far-close (negative) → motor at far_pos; LUT=1 → offset=0 → motor at close_pos.
-        feedback = (
-            tl.ManipulatorFeedback(
-                converter_lut_input=[0, 1],
-                converter_lut_output=[far_pos - close_pos, 0],
+        for i, block_dict in enumerate(blocks):
+            bp        = {**mouse_p, **block_dict}
+            far_pos   = bp["far_position"]
+            close_pos = bp["close_position"]
+            lut_ref   = f"gaussian_2d_block{i}"
+            lut_path  = str(LOCAL_DIR / f"2d_gaussian_block{i}.tiff")
+
+            # TIFF is float32 [0, 512]; converter_lut_input matches this range.
+            # output[0]=far-close → motor at far_pos (retracted) at pixel 0,
+            # output[1]=0        → motor at close_pos (extended)  at pixel 512.
+            _, _, lut_max = lut_ranges[i]
+            feedback = (
+                tl.ManipulatorFeedback(
+                    converter_lut_input=[0, 1],
+                    converter_lut_output=[far_pos - close_pos, 0],
+                )
+                if bp.get("motor_feedback", True)
+                else None
             )
-            if p.get("motor_feedback", True)
-            else None
-        )
 
-        prototype_trial = tl.Action(
-            reward_probability=tl.scalar_value(1),
-            reward_amount=tl.scalar_value(p["reward_size"]),
-            reward_delay=tl.scalar_value(0),
-            action_duration=tl.scalar_value(p.get("action_duration", 0.1)),
-            is_operant=bool(p.get("is_operant", False)),
-            time_to_collect=tl.scalar_value(p["lick_response_time"]),
-            lower_action_threshold=tl.scalar_value(0),
-            upper_action_threshold=tl.scalar_value(1),
-            continuous_feedback=feedback,
-            action_type="instantaneous" if p.get("instantaneous_mode") else "integrated",
-        )
+            prototype_trial = tl.Action(
+                reward_probability=tl.scalar_value(1),
+                reward_amount=tl.scalar_value(bp["reward_size"]),
+                reward_delay=tl.scalar_value(0),
+                action_duration=tl.scalar_value(bp.get("action_duration", 0.1)),
+                is_operant=bool(bp.get("is_operant", False)),
+                time_to_collect=tl.scalar_value(bp["lick_response_time"]),
+                lower_action_threshold=tl.scalar_value(0),
+                upper_action_threshold=tl.scalar_value(512 * (close_pos - far_pos) / lut_max),
+                continuous_feedback=feedback,
+                action_type="instantaneous" if bp.get("instantaneous_mode") else "integrated",
+            )
 
+            block_generators.append(tl.BlockGenerator(
+                block_size=tl.scalar_value(int(bp.get("trial_number", 100))),
+                trial_statistics=tl.Trial(
+                    inter_trial_interval=tl.scalar_value(bp["inter_trial_interval"]),
+                    quiescence_period=tl.QuiescencePeriod(
+                        duration=tl.scalar_value(bp.get("quiescence_duration", 0.5)),
+                        action_threshold=bp.get("quiescence_threshold", 1),
+                    ),
+                    response_period=tl.ResponsePeriod(
+                        duration=tl.scalar_value(bp["trial_length"]),
+                        has_cue=True,
+                        action=prototype_trial,
+                    ),
+                    action_source_0=tl.LoadCellActionSource(channel=0),
+                    action_source_1=tl.LoadCellActionSource(channel=1),
+                    sampler=tl.LutSampler2D(lut_reference=lut_ref),
+                ),
+            ))
+
+            action_luts[lut_ref] = tl.ActionLookUpTableFactory(
+                path=lut_path,
+                offset=0,
+                scale=1,
+                action0_max=bp["lat_range_max"],
+                action0_min=bp["lat_range_min"],
+                action1_max=bp["ap_range_max"],
+                action1_min=bp["ap_range_min"],
+            )
+
+        # Spout retraction offset uses block 0 (applies at task initialisation)
+        b0 = {**mouse_p, **blocks[0]}
         task_logic = tl.AindBehaviorTelekinesisTaskLogic(
             task_parameters=tl.AindTelekinesisTaskParameters(
                 rng_seed=None,
                 environment=tl.Environment(
-                    block_statistics=[
-                        tl.BlockGenerator(
-                            block_size=tl.scalar_value(1000),
-                            trial_statistics=tl.Trial(
-                                inter_trial_interval=tl.scalar_value(p["inter_trial_interval"]),
-                                quiescence_period=tl.QuiescencePeriod(
-                                    duration=tl.scalar_value(p.get("quiescence_duration", 0.5)),
-                                    action_threshold=p.get("quiescence_threshold", 1),
-                                ),
-                                response_period=tl.ResponsePeriod(
-                                    duration=tl.scalar_value(p["trial_length"]),
-                                    has_cue=True,
-                                    action=prototype_trial,
-                                ),
-                                action_source_0=tl.LoadCellActionSource(channel=0),
-                                action_source_1=tl.LoadCellActionSource(channel=1),
-                                sampler=tl.LutSampler2D(lut_reference="gaussian_2d"),
-                            ),
-                        )
-                    ]
+                    block_statistics=block_generators,
                 ),
                 operation_control=tl.OperationControl(
-                    action_luts={
-                        "gaussian_2d": tl.ActionLookUpTableFactory(
-                            path=lut_path,
-                            offset=0,
-                            scale=p["lut_scale"],
-                            action0_max=p["lat_range_max"],
-                            action0_min=p["lat_range_min"],
-                            action1_max=p["ap_range_max"],
-                            action1_min=p["ap_range_min"],
-                        )
-                    },
+                    action_luts=action_luts,
                     spout=tl.SpoutOperationControl(
-                        default_retraction_offset=far_pos - close_pos,
+                        default_retraction_offset=b0["far_position"] - b0["close_position"],
                         enabled=True,
                     ),
                 ),
@@ -1470,8 +1740,12 @@ class ConfigTab(ttk.Frame):
         # Auto-save the profile so camera settings and other changes persist
         name = self._mouse_var.get()
         p    = self._build_current_params()
-        self._profiles[name] = deepcopy(p)
-        save_mouse_profile(name, p)
+        profile = {
+            "blocks": deepcopy(self._blocks),
+            **{k: v for k, v in p.items() if k not in self._BLOCK_KEYS},
+        }
+        self._profiles[name] = profile
+        save_mouse_profile(name, profile)
 
         bonsai_exe      = PROJECT_ROOT / ".bonsai" / "Bonsai.exe"
         bonsai_workflow = PROJECT_ROOT / "src" / "main.bonsai"
@@ -1484,8 +1758,7 @@ class ConfigTab(ttk.Frame):
                 parent=self,
             )
             return
-        bonsai_log = open(LOCAL_DIR / "bonsai.log", "w")
-        subprocess.Popen(
+        proc = subprocess.Popen(
             [
                 str(bonsai_exe),
                 str(bonsai_workflow),
@@ -1495,11 +1768,21 @@ class ConfigTab(ttk.Frame):
             ],
             cwd=str(PROJECT_ROOT),
             stdin=subprocess.DEVNULL,
-            stdout=bonsai_log,
-            stderr=bonsai_log,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
-        bonsai_log.close()  # parent can close; child inherited the handle
+
+        def _stream_bonsai(p):
+            try:
+                for line in io.TextIOWrapper(p.stdout, encoding="utf-8", errors="replace"):
+                    sys.stderr.write("[Bonsai] " + line)
+                    sys.stderr.flush()
+            except Exception:
+                pass
+
+        threading.Thread(target=_stream_bonsai, args=(proc,),
+                         daemon=True, name="bonsai-log").start()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2088,13 +2371,76 @@ class RigTab(ttk.Frame):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Log tab
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class LogTab(ttk.Frame):
+    """Tab that displays unhandled Python exceptions caught by the crash handler."""
+
+    _LABEL_NORMAL = "   Log   "
+    _LABEL_ERROR  = "   Log (!)   "
+
+    def __init__(self, parent: ttk.Notebook):
+        super().__init__(parent)
+        self._nb = parent
+
+        toolbar = ttk.Frame(self)
+        toolbar.pack(fill="x", padx=6, pady=(6, 2))
+        ttk.Button(toolbar, text="Clear", command=self._clear).pack(side="left")
+
+        self._text = scrolledtext.ScrolledText(
+            self, wrap="word", state="disabled",
+            font=("Courier New", 9), relief="flat",
+        )
+        self._text.pack(fill="both", expand=True, padx=6, pady=(2, 6))
+
+        self._nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
+    # ── Public API called from the crash handler ─────────────────────────────
+
+    def append(self, text: str) -> None:
+        self._text.configure(state="normal")
+        self._text.insert("end", text)
+        self._text.see("end")
+        self._text.configure(state="disabled")
+        if not self._is_selected():
+            idx = self._tab_index()
+            if idx is not None:
+                self._nb.tab(idx, text=self._LABEL_ERROR)
+
+    # ── Internal helpers ─────────────────────────────────────────────────────
+
+    def _clear(self) -> None:
+        self._text.configure(state="normal")
+        self._text.delete("1.0", "end")
+        self._text.configure(state="disabled")
+
+    def _tab_index(self):
+        for i, tab_id in enumerate(self._nb.tabs()):
+            if self._nb.nametowidget(tab_id) is self:
+                return i
+        return None
+
+    def _is_selected(self) -> bool:
+        try:
+            return self._nb.index("current") == self._tab_index()
+        except Exception:
+            return False
+
+    def _on_tab_changed(self, _) -> None:
+        if self._is_selected():
+            idx = self._tab_index()
+            if idx is not None:
+                self._nb.tab(idx, text=self._LABEL_NORMAL)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Application entry point
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        _install_crash_handlers(self)
         self.title("Telekinesis Task Setup")
         self.geometry("1300x1050")
         self.minsize(1050, 1050)
@@ -2112,10 +2458,14 @@ class App(tk.Tk):
         self._monitor_tab = MonitorTab(nb)
         self._rig_tab     = RigTab(nb)
         self._backup_tab  = BackupTab(nb)
+        self._log_tab     = LogTab(nb)
         nb.add(self._config_tab,  text="   Task Configuration   ")
         nb.add(self._monitor_tab, text="   Live Monitor   ")
         nb.add(self._rig_tab,     text="   Rig Config   ")
         nb.add(self._backup_tab,  text="   Backup   ")
+        nb.add(self._log_tab,     text=LogTab._LABEL_NORMAL)
+
+        _install_crash_handlers(self, self._log_tab)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
