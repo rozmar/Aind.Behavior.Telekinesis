@@ -634,6 +634,9 @@ class ConfigTab(ttk.Frame):
         self._lc_calibration: "dict | None" = None
         self._lc_calibration_rig: "str | None" = None
         self._lc_calibration_time: float = 0.0
+        self._lut_display:  "np.ndarray | None" = None
+        self._lut_lat_disp: "np.ndarray | None" = None
+        self._lut_ap_disp:  "np.ndarray | None" = None
         self._build_ui()
         self._refresh_mouse_list()
 
@@ -695,47 +698,6 @@ class ConfigTab(ttk.Frame):
             setattr(self, attr, var)
         self._exp_var.trace_add("write", self._on_task_param_changed)
         self._notes_var.trace_add("write", self._on_task_param_changed)
-
-        # Presets
-        prg = ttk.LabelFrame(parent, text="Presets")
-        prg.pack(fill="x", pady=(0, 5))
-
-        pr_row = ttk.Frame(prg)
-        pr_row.pack(fill="x", padx=4, pady=(4, 2))
-        self._preset_var   = tk.StringVar()
-        self._preset_combo = ttk.Combobox(pr_row, textvariable=self._preset_var, width=18, state="readonly")
-        self._preset_combo.pack(side="left", padx=(0, 4), fill="x", expand=True)
-        ttk.Button(pr_row, text="Load", width=6, command=self._on_load_preset).pack(side="left")
-
-        pr_row2 = ttk.Frame(prg)
-        pr_row2.pack(fill="x", padx=4, pady=(0, 4))
-        ttk.Button(pr_row2, text="Save As…", command=self._on_save_preset_as).pack(side="left")
-        ttk.Button(pr_row2, text="Delete",   command=self._on_delete_preset).pack(side="left", padx=4)
-
-        self._refresh_preset_list()
-
-        # Blocks
-        blkg = ttk.LabelFrame(parent, text="Blocks")
-        blkg.pack(fill="x", pady=(0, 5))
-
-        blk_row1 = ttk.Frame(blkg)
-        blk_row1.pack(fill="x", padx=4, pady=(4, 2))
-        ttk.Label(blk_row1, text="Current:").pack(side="left")
-        self._block_var   = tk.StringVar()
-        self._block_combo = ttk.Combobox(blk_row1, textvariable=self._block_var,
-                                         width=10, state="readonly")
-        self._block_combo.pack(side="left", padx=(4, 2))
-        self._block_combo.bind("<<ComboboxSelected>>", self._on_block_selected)
-        ttk.Button(blk_row1, text="▲", width=3, command=self._move_block_up).pack(side="left")
-        ttk.Button(blk_row1, text="▼", width=3, command=self._move_block_down).pack(side="left", padx=(1, 0))
-
-        blk_row2 = ttk.Frame(blkg)
-        blk_row2.pack(fill="x", padx=4, pady=(0, 4))
-        ttk.Button(blk_row2, text="Add Before", command=self._add_block_before).pack(side="left")
-        ttk.Button(blk_row2, text="Add After",  command=self._add_block_after).pack(side="left", padx=2)
-        ttk.Button(blk_row2, text="Delete",     command=self._delete_block).pack(side="left")
-
-        self._refresh_block_selector()
 
         # Task parameters
         pg = ttk.LabelFrame(parent, text="Task Parameters")
@@ -872,6 +834,50 @@ class ConfigTab(ttk.Frame):
     # ── Right panel: LUT editor ────────────────────────────────────────────────
 
     def _build_right(self, parent):
+        # ── Presets + Blocks strip ─────────────────────────────────────────────
+        strip = ttk.Frame(parent)
+        strip.pack(fill="x", pady=(0, 4))
+
+        prg = ttk.LabelFrame(strip, text="Presets")
+        prg.pack(side="left", fill="y", padx=(0, 6))
+
+        pr_row = ttk.Frame(prg)
+        pr_row.pack(fill="x", padx=4, pady=(4, 2))
+        self._preset_var   = tk.StringVar()
+        self._preset_combo = ttk.Combobox(pr_row, textvariable=self._preset_var, width=18, state="readonly")
+        self._preset_combo.pack(side="left", padx=(0, 4), fill="x", expand=True)
+        ttk.Button(pr_row, text="Load", width=6, command=self._on_load_preset).pack(side="left")
+
+        pr_row2 = ttk.Frame(prg)
+        pr_row2.pack(fill="x", padx=4, pady=(0, 4))
+        ttk.Button(pr_row2, text="Save As…", command=self._on_save_preset_as).pack(side="left")
+        ttk.Button(pr_row2, text="Delete",   command=self._on_delete_preset).pack(side="left", padx=4)
+
+        self._refresh_preset_list()
+
+        blkg = ttk.LabelFrame(strip, text="Blocks")
+        blkg.pack(side="left", fill="y")
+
+        blk_row1 = ttk.Frame(blkg)
+        blk_row1.pack(fill="x", padx=4, pady=(4, 2))
+        ttk.Label(blk_row1, text="Current:").pack(side="left")
+        self._block_var   = tk.StringVar()
+        self._block_combo = ttk.Combobox(blk_row1, textvariable=self._block_var,
+                                         width=10, state="readonly")
+        self._block_combo.pack(side="left", padx=(4, 2))
+        self._block_combo.bind("<<ComboboxSelected>>", self._on_block_selected)
+        ttk.Button(blk_row1, text="▲", width=3, command=self._move_block_up).pack(side="left")
+        ttk.Button(blk_row1, text="▼", width=3, command=self._move_block_down).pack(side="left", padx=(1, 0))
+
+        blk_row2 = ttk.Frame(blkg)
+        blk_row2.pack(fill="x", padx=4, pady=(0, 4))
+        ttk.Button(blk_row2, text="Add Before", command=self._add_block_before).pack(side="left")
+        ttk.Button(blk_row2, text="Add After",  command=self._add_block_after).pack(side="left", padx=2)
+        ttk.Button(blk_row2, text="Delete",     command=self._delete_block).pack(side="left")
+
+        self._refresh_block_selector()
+
+        # ── LUT editor ─────────────────────────────────────────────────────────
         lut_frame = ttk.LabelFrame(parent, text="LUT Editor – 2D Speed Map")
         lut_frame.pack(fill="both", expand=True)
 
@@ -1009,6 +1015,11 @@ class ConfigTab(ttk.Frame):
         self._lut_ax.set_ylabel("AP Force (au)", fontsize=8)
         self._lut_canvas = FigureCanvasTkAgg(self._lut_fig, master=canvas_frame)
         self._lut_canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        self._lut_hover_var = tk.StringVar(value="")
+        ttk.Label(canvas_frame, textvariable=self._lut_hover_var,
+                  foreground="gray", font=("TkFixedFont", 8)).pack(anchor="w", padx=4)
+        self._lut_canvas.mpl_connect("motion_notify_event", self._on_lut_hover)
 
         self._refresh_gauss_list()
         self._refresh_step_list()
@@ -1535,6 +1546,20 @@ class ConfigTab(ttk.Frame):
 
     # ── LUT preview ────────────────────────────────────────────────────────────
 
+    def _on_lut_hover(self, event):
+        if event.inaxes is not self._lut_ax or self._lut_display is None:
+            self._lut_hover_var.set("")
+            return
+        try:
+            x, y = event.xdata, event.ydata
+            # Find the nearest grid point in the same coordinate arrays the contour uses
+            col = int(np.argmin(np.abs(self._lut_lat_disp - x)))
+            row = int(np.argmin(np.abs(self._lut_ap_disp  - y)))
+            val = self._lut_display[row, col]
+            self._lut_hover_var.set(f"x={x:.3g}   y={y:.3g}   value={val:.4g}")
+        except Exception:
+            self._lut_hover_var.set("")
+
     def _schedule_lut_update(self):
         """Rate-limit preview redraws to avoid UI stutter while typing."""
         if not self._params_loading and self._blocks:
@@ -1624,6 +1649,9 @@ class ConfigTab(ttk.Frame):
             self._lut_cbar.update_normal(self._lut_im)
             self._lut_ax.set_xlim(lat_disp[0], lat_disp[-1])
             self._lut_ax.set_ylim(ap_disp[-1], ap_disp[0])  # inverted: posterior(+) at bottom, anterior(−) at top
+            self._lut_display  = display
+            self._lut_lat_disp = lat_disp
+            self._lut_ap_disp  = ap_disp
 
             # Iso-lines — remove each stored artist individually so a single
             # failure never blocks the rest.
@@ -1701,11 +1729,174 @@ class ConfigTab(ttk.Frame):
     def _on_generate_config(self):
         try:
             session_folder = self._generate_config()
-            messagebox.showinfo("Config Generated",
-                                f"Config files written to:\n{LOCAL_DIR}"
-                                f"\n\nSession folder:\n{session_folder}", parent=self)
+            self._show_block_summary(session_folder)
         except Exception as exc:
             messagebox.showerror("Error", str(exc), parent=self)
+
+    # ── Block summary popup ────────────────────────────────────────────────────
+
+    _SUMMARY_PARAMS = [
+        ("trial_number",         "Trials"),
+        ("trial_length",         "Trial length (s)"),
+        ("action_duration",      "Action dur (s)"),
+        ("lick_response_time",   "Response time (s)"),
+        ("inter_trial_interval", "ITI (s)"),
+        ("reward_size",          "Reward (µL)"),
+        ("far_position",         "Far pos (mm)"),
+        ("close_position",       "Close pos (mm)"),
+        ("quiescence_duration",  "Quiescence dur (s)"),
+        ("quiescence_threshold", "Quiescence thr"),
+        ("is_operant",           "Operant"),
+        ("instantaneous_mode",   "Instantaneous"),
+        ("motor_feedback",       "Motor feedback"),
+        ("lut_offset",           "LUT offset"),
+        ("lut_scale",            "LUT scale"),
+        ("lat_range_min",        "Lat min"),
+        ("lat_range_max",        "Lat max"),
+        ("ap_range_min",         "AP min"),
+        ("ap_range_max",         "AP max"),
+    ]
+
+    def _show_block_summary(self, session_folder: str = ""):
+        p      = self._build_current_params()
+        blocks = self._blocks
+        if not blocks:
+            return
+
+        cal = self._get_calibration()
+        n   = len(blocks)
+
+        # ── Compute per-block LUT data ─────────────────────────────────────────
+        all_displays, all_lat_disp, all_ap_disp = [], [], []
+        lat_lbl = "Lateral Force (au, Left→Right)"
+        ap_lbl  = "AP Force (au, Posterior→Anterior)"
+        for block in blocks:
+            bp = {**p, **block}
+            matrix, lat_vec, ap_vec = compute_lut_matrix(bp)
+            display = matrix * bp.get("lut_scale", 1.0)
+            if cal and "lat" in cal:
+                lv, lg = cal["lat"]
+                ix = np.argsort(lv)
+                lat_d = np.interp(np.abs(lat_vec), lv[ix], lg[ix]) * np.sign(lat_vec)
+                lat_lbl = "Lateral Force (g, Left→Right)"
+            else:
+                lat_d = lat_vec
+            if cal and "ap" in cal:
+                av, ag = cal["ap"]
+                ix = np.argsort(av)
+                ap_d = np.interp(np.abs(ap_vec), av[ix], ag[ix]) * np.sign(ap_vec)
+                ap_lbl = "AP Force (g, Posterior→Anterior)"
+            else:
+                ap_d = ap_vec
+            all_displays.append(display)
+            all_lat_disp.append(lat_d)
+            all_ap_disp.append(ap_d)
+
+        # Shared colour + spatial scales
+        vmin = min(d.min() for d in all_displays)
+        vmax = max(d.max() for d in all_displays)
+        x_lo = min(ld[0]  for ld in all_lat_disp)
+        x_hi = max(ld[-1] for ld in all_lat_disp)
+        # y axis is inverted: posterior (positive) at bottom, anterior (negative) at top
+        y_bot = max(ad[-1] for ad in all_ap_disp)   # most posterior  → bottom
+        y_top = min(ad[0]  for ad in all_ap_disp)   # most anterior   → top
+
+        inst_mode = ({**p, **blocks[0]}).get("instantaneous_mode", False)
+        cbar_lbl  = "Position (0→1)" if inst_mode else "Speed (mm/s)"
+
+        # ── Window ─────────────────────────────────────────────────────────────
+        win = tk.Toplevel(self)
+        win.title(f"Block Summary  —  {session_folder}" if session_folder else "Block Summary")
+        win.geometry(f"{min(220*n + 120, 1600)}x750")
+
+        # ── Matplotlib figure ──────────────────────────────────────────────────
+        fig_frame = ttk.Frame(win)
+        fig_frame.pack(fill="both", expand=True, padx=6, pady=(6, 0))
+
+        fig = Figure(figsize=(max(3.2 * n + 0.8, 5), 3.8), tight_layout=True)
+        axes = [fig.add_subplot(1, n, i + 1) for i in range(n)]
+        last_im = None
+        for i, (ax, display, lat_d, ap_d) in enumerate(
+                zip(axes, all_displays, all_lat_disp, all_ap_disp)):
+            im = ax.imshow(
+                display, cmap="viridis", vmin=vmin, vmax=vmax,
+                extent=[lat_d[0], lat_d[-1], ap_d[-1], ap_d[0]],
+                aspect="auto",
+            )
+            ax.set_xlim(x_lo, x_hi)
+            ax.set_ylim(y_bot, y_top)
+            ax.set_title(f"Block {i + 1}", fontsize=9)
+            ax.set_xlabel(lat_lbl, fontsize=7)
+            if i == 0:
+                ax.set_ylabel(ap_lbl, fontsize=7)
+            else:
+                ax.tick_params(labelleft=False)
+            last_im = im
+
+        fig_canvas = FigureCanvasTkAgg(fig, master=fig_frame)
+        fig_canvas.get_tk_widget().pack(fill="both", expand=True)
+        fig_canvas.draw()
+
+        # ── Bottom row: parameter table + colorbar ─────────────────────────────
+        bottom = ttk.Frame(win)
+        bottom.pack(fill="x", padx=6, pady=(4, 6))
+
+        tbl_outer = ttk.Frame(bottom)
+        tbl_outer.pack(side="left", fill="x", expand=True)
+        h_sb = ttk.Scrollbar(tbl_outer, orient="horizontal")
+        h_sb.pack(side="bottom", fill="x")
+        tbl_cv = tk.Canvas(tbl_outer, xscrollcommand=h_sb.set,
+                           height=min(len(self._SUMMARY_PARAMS) * 18 + 26, 260),
+                           highlightthickness=0, bg="white")
+        tbl_cv.pack(fill="x")
+        h_sb.config(command=tbl_cv.xview)
+
+        tbl = tk.Frame(tbl_cv, bg="white")
+        tbl_cv.create_window((0, 0), window=tbl, anchor="nw")
+        tbl.bind("<Configure>", lambda _: tbl_cv.configure(scrollregion=tbl_cv.bbox("all")))
+
+        # Header row
+        LABEL_W, VAL_W = 20, 14
+        tk.Label(tbl, text="Parameter", font=("TkDefaultFont", 8, "bold"),
+                 anchor="w", bg="#e0e0e0", width=LABEL_W, padx=4).grid(
+                 row=0, column=0, sticky="ew", padx=(0, 1), pady=(0, 1))
+        for i in range(n):
+            tk.Label(tbl, text=f"Block {i + 1}", font=("TkDefaultFont", 8, "bold"),
+                     anchor="center", bg="#e0e0e0", width=VAL_W).grid(
+                     row=0, column=i + 1, padx=1, pady=(0, 1), sticky="ew")
+
+        for row_i, (key, label) in enumerate(self._SUMMARY_PARAMS, start=1):
+            row_bg = "#f5f5f5" if row_i % 2 else "white"
+            tk.Label(tbl, text=label, font=("TkFixedFont", 8), anchor="w",
+                     bg=row_bg, width=LABEL_W, padx=4).grid(
+                     row=row_i, column=0, sticky="ew", padx=(0, 1))
+            for i, block in enumerate(blocks):
+                bp     = {**p, **block}
+                val    = bp.get(key)
+                val_str = f"{val:.4g}" if isinstance(val, float) else ("—" if val is None else str(val))
+                changed = False
+                if i > 0:
+                    prev_val = ({**p, **blocks[i - 1]}).get(key)
+                    changed  = (val != prev_val)
+                cell_bg = "#ffe082" if changed else row_bg
+                tk.Label(tbl, text=val_str, font=("TkFixedFont", 8), anchor="center",
+                         bg=cell_bg, width=VAL_W).grid(
+                         row=row_i, column=i + 1, padx=1, sticky="ew")
+
+        # Colorbar — separate narrow figure to the right of the table
+        if last_im is not None:
+            tbl_h = min(len(self._SUMMARY_PARAMS) * 18 + 26, 260)
+            cbar_fig = Figure(figsize=(1.6, tbl_h / 96))
+            cbar_ax  = cbar_fig.add_axes([0.05, 0.08, 0.22, 0.84])
+            import matplotlib
+            matplotlib.colorbar.ColorbarBase(
+                cbar_ax, cmap=matplotlib.cm.viridis,
+                norm=matplotlib.colors.Normalize(vmin=vmin, vmax=vmax),
+                orientation="vertical", label=cbar_lbl,
+            )
+            cbar_canvas = FigureCanvasTkAgg(cbar_fig, master=bottom)
+            cbar_canvas.get_tk_widget().pack(side="left", padx=(6, 0))
+            cbar_canvas.draw()
 
     def _generate_config(self):
         self._save_current_block()
@@ -2639,8 +2830,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Telekinesis Task Setup")
-        self.geometry("1300x1050")
-        self.minsize(1050, 1050)
+        self.geometry("1300x1200")
+        self.minsize(1050, 1200)
 
         style = ttk.Style(self)
         style.theme_use("clam")
