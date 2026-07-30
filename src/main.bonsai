@@ -26,9 +26,9 @@
         <Property Name="SessionPath" />
       </Expression>
       <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.Core:ReadSchemas.bonsai">
-        <TaskLogicPath />
-        <RigPath />
-        <SessionPath />
+        <TaskLogicPath>c:\Scripts\Aind.Behavior.Telekinesis\local\AindBehaviorTelekinesisTaskLogic.json</TaskLogicPath>
+        <RigPath>c:\Scripts\Aind.Behavior.Telekinesis\local\AindBehaviorTelekinesisRig.json</RigPath>
+        <SessionPath>c:\Scripts\Aind.Behavior.Telekinesis\local\Session.json</SessionPath>
       </Expression>
       <Expression xsi:type="GroupWorkflow">
         <Name>LoadSchemas</Name>
@@ -148,7 +148,7 @@
             </Expression>
             <Expression xsi:type="Combinator">
               <Combinator xsi:type="num:CreateRandom">
-                <num:Seed xsi:nil="true" />
+                <num:Seed>0</num:Seed>
               </Combinator>
             </Expression>
             <Expression xsi:type="Combinator">
@@ -187,8 +187,8 @@
               </PropertyMappings>
             </Expression>
             <Expression xsi:type="IncludeWorkflow" Path="AllenNeuralDynamics.Core:GenerateRootLoggingPathFromSession.bonsai">
-              <RootFolder />
-              <SessionName xsi:nil="true" />
+              <RootFolder>C:\Data</RootFolder>
+              <SessionName>TEST_MOUSE_2026-07-16T133746.140867Z</SessionName>
               <SubjectName>LoggingRootPath</SubjectName>
             </Expression>
             <Expression xsi:type="Combinator">
@@ -594,7 +594,7 @@ Item2.Item3 as LowerThr)]]></Text>
                         </Expression>
                         <Expression xsi:type="Combinator">
                           <Combinator xsi:type="p7:ThrowException">
-                            <p7:Message>Dropped frame detected during pre-session!</p7:Message>
+                            <p7:Message>Camera (True, SideCamera) exposure setting not compatible with requested frame rate!</p7:Message>
                           </Combinator>
                         </Expression>
                         <Expression xsi:type="SubscribeSubject">

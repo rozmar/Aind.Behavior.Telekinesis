@@ -1,0 +1,1 @@
+"C:\Scripts\Aind.Behavior.Telekinesis\bonsai\Bonsai.exe" "C:\Scripts\Aind.Behavior.Telekinesis\src\main.bonsai" -p RigPath="C:\Scripts\Aind.Behavior.Telekinesis\local\AindBehaviorTelekinesisRig.json" -p SessionPath="C:\Scripts\Aind.Behavior.Telekinesis\local\Session.json" -p TaskPath="C:\Scripts\Aind.Behavior.Telekinesis\local\AindBehaviorTelekinesisTaskLogic.json"
