@@ -1920,7 +1920,7 @@ class ConfigTab(ttk.Frame):
             experiment="Isometric Task",
             subject=mouse_name,
             notes=self._notes_var.get(),
-            allow_dirty_repo=True,
+            allow_dirty_repo=False,
             skip_hardware_validation=False,
             experimenter=[self._exp_var.get()],
         )
