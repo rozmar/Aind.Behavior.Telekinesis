@@ -1552,9 +1552,17 @@ class ConfigTab(ttk.Frame):
             return
         try:
             x, y = event.xdata, event.ydata
-            # Find the nearest grid point in the same coordinate arrays the contour uses
-            col = int(np.argmin(np.abs(self._lut_lat_disp - x)))
-            row = int(np.argmin(np.abs(self._lut_ap_disp  - y)))
+            n_rows, n_cols = self._lut_display.shape
+            lat0, lat1 = self._lut_lat_disp[0], self._lut_lat_disp[-1]
+            ap0,  ap1  = self._lut_ap_disp[0],  self._lut_ap_disp[-1]
+            # Mirror imshow's own linear index<->extent placement rather than
+            # searching for the nearest matching calibrated value: calibration
+            # clamps past the measured range, so many rows/cols can share the
+            # same value there and a value-search can't tell them apart.
+            col = round((x - lat0) / (lat1 - lat0) * (n_cols - 1))
+            row = round((y - ap1) / (ap0 - ap1) * (n_rows - 1))
+            col = int(min(max(col, 0), n_cols - 1))
+            row = int(min(max(row, 0), n_rows - 1))
             val = self._lut_display[row, col]
             self._lut_hover_var.set(f"x={x:.3g}   y={y:.3g}   value={val:.4g}")
         except Exception:
@@ -1668,8 +1676,14 @@ class ConfigTab(ttk.Frame):
                     if levels:
                         before_c = set(id(c) for c in self._lut_ax.collections)
                         before_t = set(id(t) for t in self._lut_ax.texts)
+                        # Match imshow's linear index<->extent placement (see
+                        # _on_lut_hover) instead of the true calibrated lat_disp/
+                        # ap_disp, which can clamp to the same value past the
+                        # measured calibration range and no longer match the image.
+                        lat_lin = np.linspace(lat_disp[0], lat_disp[-1], len(lat_disp))
+                        ap_lin  = np.linspace(ap_disp[-1], ap_disp[0], len(ap_disp))
                         cs = self._lut_ax.contour(
-                            lat_disp, ap_disp, display, levels=levels,
+                            lat_lin, ap_lin, display, levels=levels,
                             colors="white", linewidths=0.8, linestyles="dashed",
                         )
                         self._lut_ax.clabel(cs, fmt="%.2g", fontsize=7)
