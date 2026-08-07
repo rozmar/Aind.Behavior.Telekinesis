@@ -1834,7 +1834,7 @@ class ConfigTab(ttk.Frame):
                 zip(axes, all_displays, all_lat_disp, all_ap_disp)):
             im = ax.imshow(
                 display, cmap="viridis", vmin=vmin, vmax=vmax,
-                extent=[lat_d[0], lat_d[-1], ap_d[-1], ap_d[0]],
+                origin="lower", extent=[lat_d[0], lat_d[-1], ap_d[-1], ap_d[0]],
                 aspect="auto",
             )
             ax.set_xlim(x_lo, x_hi)
