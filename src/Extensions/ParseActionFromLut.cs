@@ -163,7 +163,9 @@ public class SubPixelBilinearInterpolator
         {
             var a1 = Rescale(value.Action1, Settings.Action1Min, Settings.Action1Max, 0, w - 1);
             a1 = ClampValue(a1, 0, w - 1);
-            var result = GetSubPixel2D(LookUpTable, a0, a1);
+            // LUT matrices are authored as matrix[row = Action1, col = Action0] (see task_gui.py's
+            // compute_lut_matrix), so the row/col arguments here must be swapped relative to a0/a1.
+            var result = GetSubPixel2D(LookUpTable, a1, a0);
             return new ActionVectorFromLut<ActionVector>(value, result, new ActionVector(a0, a1));
         }
     }
