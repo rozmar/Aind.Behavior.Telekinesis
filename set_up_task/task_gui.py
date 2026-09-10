@@ -2044,8 +2044,10 @@ class ConfigTab(ttk.Frame):
                         has_cue=True,
                         action=prototype_trial,
                     ),
-                    action_source_0=tl.LoadCellActionSource(channel=0),
-                    action_source_1=tl.LoadCellActionSource(channel=1),
+                    # Channel 0 is physically the AP load-cell axis and channel 1 is physically
+                    # Lateral, so they're swapped here to match Action0=Lateral, Action1=AP.
+                    action_source_0=tl.LoadCellActionSource(channel=1),
+                    action_source_1=tl.LoadCellActionSource(channel=0),
                     sampler=tl.LutSampler2D(lut_reference=lut_ref),
                 ),
             ))
