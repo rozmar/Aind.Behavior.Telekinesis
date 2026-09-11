@@ -1005,7 +1005,7 @@ class ConfigTab(ttk.Frame):
         self._lut_ax  = self._lut_fig.add_subplot(111)
         _blank = np.zeros((100, 100))
         self._lut_im = self._lut_ax.imshow(
-            _blank, cmap="viridis", origin="lower", aspect="auto",
+            _blank, cmap="viridis", origin="upper", aspect="auto",
             extent=[-2000, 2000, -2000, 2000],
         )
         self._lut_cbar = self._lut_fig.colorbar(self._lut_im, ax=self._lut_ax,
@@ -1560,7 +1560,7 @@ class ConfigTab(ttk.Frame):
             # clamps past the measured range, so many rows/cols can share the
             # same value there and a value-search can't tell them apart.
             col = round((x - lat0) / (lat1 - lat0) * (n_cols - 1))
-            row = round((y - ap1) / (ap0 - ap1) * (n_rows - 1))
+            row = round((y - ap0) / (ap1 - ap0) * (n_rows - 1))
             col = int(min(max(col, 0), n_cols - 1))
             row = int(min(max(row, 0), n_rows - 1))
             val = self._lut_display[row, col]
@@ -1681,7 +1681,7 @@ class ConfigTab(ttk.Frame):
                         # ap_disp, which can clamp to the same value past the
                         # measured calibration range and no longer match the image.
                         lat_lin = np.linspace(lat_disp[0], lat_disp[-1], len(lat_disp))
-                        ap_lin  = np.linspace(ap_disp[-1], ap_disp[0], len(ap_disp))
+                        ap_lin  = np.linspace(ap_disp[0], ap_disp[-1], len(ap_disp))
                         cs = self._lut_ax.contour(
                             lat_lin, ap_lin, display, levels=levels,
                             colors="white", linewidths=0.8, linestyles="dashed",
@@ -1834,7 +1834,7 @@ class ConfigTab(ttk.Frame):
                 zip(axes, all_displays, all_lat_disp, all_ap_disp)):
             im = ax.imshow(
                 display, cmap="viridis", vmin=vmin, vmax=vmax,
-                origin="lower", extent=[lat_d[0], lat_d[-1], ap_d[-1], ap_d[0]],
+                origin="upper", extent=[lat_d[0], lat_d[-1], ap_d[-1], ap_d[0]],
                 aspect="auto",
             )
             ax.set_xlim(x_lo, x_hi)
