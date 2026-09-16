@@ -2018,6 +2018,16 @@ class ConfigTab(ttk.Frame):
                 else None
             )
 
+            instantaneous = bool(bp.get("instantaneous_mode"))
+            if instantaneous:
+                # Instantaneous mode samples the LUT directly as a position (not a
+                # speed to integrate). The LUT is authored so that a display value
+                # of 1 marks "close position, rewarded" — after save_lut_image's
+                # normalisation that display value lands at pixel 512 / lut_max.
+                upper_threshold = 512 / lut_max
+            else:
+                upper_threshold = 512 * (close_pos - far_pos) / lut_max
+
             prototype_trial = tl.Action(
                 reward_probability=tl.scalar_value(1),
                 reward_amount=tl.scalar_value(bp["reward_size"]),
@@ -2026,9 +2036,9 @@ class ConfigTab(ttk.Frame):
                 is_operant=bool(bp.get("is_operant", False)),
                 time_to_collect=tl.scalar_value(bp["lick_response_time"]),
                 lower_action_threshold=tl.scalar_value(0),
-                upper_action_threshold=tl.scalar_value(512 * (close_pos - far_pos) / lut_max),
+                upper_action_threshold=tl.scalar_value(upper_threshold),
                 continuous_feedback=feedback,
-                action_type="instantaneous" if bp.get("instantaneous_mode") else "integrated",
+                action_type="instantaneous" if instantaneous else "integrated",
             )
 
             block_generators.append(tl.BlockGenerator(
