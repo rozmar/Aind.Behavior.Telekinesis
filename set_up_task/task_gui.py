@@ -116,6 +116,7 @@ DEFAULT_PARAMS: dict = {
     "lick_response_time":    4.0,
     "inter_trial_interval":  2.0,
     "reward_size":           1.0,
+    "reward_delay":          0.1,
     "far_position":          5.0,
     "close_position":        14.5,
     "mouse_motor_hard_limit": 15.0,
@@ -711,6 +712,7 @@ class ConfigTab(ttk.Frame):
             ("lick_response_time",    "Lick Response (s)",      4.0,  0.1,     60,   0.5),
             ("inter_trial_interval",  "ITI (s)",                2.0,  0.1,     60,   0.5),
             ("reward_size",           "Reward (µL)",            1.0,  0.1,     20,   0.1),
+            ("reward_delay",          "Reward Delay (s)",       0.1,  0.0,      5,  0.05),
             ("far_position",          "Far Position (mm)",      5.0,  0,       30,   0.5),
             ("close_position",        "Close Position (mm)",   14.5,  0,       30,   0.5),
             ("mouse_motor_hard_limit","Motor Limit (mm)",      15.0,  0,       30,   0.5),
@@ -1071,7 +1073,7 @@ class ConfigTab(ttk.Frame):
 
     _BLOCK_KEYS = {
         "trial_number", "trial_length", "action_duration", "lick_response_time",
-        "inter_trial_interval", "reward_size", "far_position", "close_position",
+        "inter_trial_interval", "reward_size", "reward_delay", "far_position", "close_position",
         "quiescence_duration", "quiescence_threshold",
         "is_operant", "instantaneous_mode", "motor_feedback",
         "lut_offset", "lut_scale",
@@ -1756,6 +1758,7 @@ class ConfigTab(ttk.Frame):
         ("lick_response_time",   "Response time (s)"),
         ("inter_trial_interval", "ITI (s)"),
         ("reward_size",          "Reward (µL)"),
+        ("reward_delay",         "Reward delay (s)"),
         ("far_position",         "Far pos (mm)"),
         ("close_position",       "Close pos (mm)"),
         ("quiescence_duration",  "Quiescence dur (s)"),
@@ -2031,7 +2034,7 @@ class ConfigTab(ttk.Frame):
             prototype_trial = tl.Action(
                 reward_probability=tl.scalar_value(1),
                 reward_amount=tl.scalar_value(bp["reward_size"]),
-                reward_delay=tl.scalar_value(0),
+                reward_delay=tl.scalar_value(bp.get("reward_delay", 0.1)),
                 action_duration=tl.scalar_value(bp.get("action_duration", 0.1)),
                 is_operant=bool(bp.get("is_operant", False)),
                 time_to_collect=tl.scalar_value(bp["lick_response_time"]),
